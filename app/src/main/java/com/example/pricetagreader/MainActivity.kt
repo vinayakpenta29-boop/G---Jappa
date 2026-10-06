@@ -2,25 +2,25 @@ package com.example.pricetagreader
 
 import android.net.Uri
 import android.os.Bundle
+import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
-import com.example.pricetagreader.databinding.ActivityMainBinding
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
-import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
     private var tempImageUri: Uri? = null
     private var serialIndex = 1
+    private lateinit var tableLayout: TableLayout
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { processImage(it) }
@@ -34,10 +34,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_main)
 
-        binding.fabCamera.setOnClickListener {
+        // Using findViewById bypasses the ActivityMainBinding generation errors
+        tableLayout = findViewById(R.id.tableLayout)
+        val fabCamera = findViewById<FloatingActionButton>(R.id.fabCamera)
+
+        fabCamera.setOnClickListener {
             showImageOptions()
         }
     }
@@ -51,7 +54,8 @@ class MainActivity : AppCompatActivity() {
                     galleryLauncher.launch("image/*")
                 } else {
                     val tempFile = File(cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
-                    tempImageUri = FileProvider.getUriForFile(this, "${applicationId}.provider", tempFile)
+                    // Fixed: Using packageName instead of applicationId
+                    tempImageUri = FileProvider.getUriForFile(this, "${packageName}.provider", tempFile)
                     cameraLauncher.launch(tempImageUri)
                 }
             }
@@ -81,7 +85,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun extractAndAddData(rawText: String, barcode: String) {
-        // Regex patterns based on your sample image
+        // Regex patterns to find specific values from the text block
         val dateRegex = Regex("(\\d{2}/\\d{2}/\\d{4})")
         val billNoRegex = Regex("Bill No\\s*\\n*\\s*(\\d+)", RegexOption.IGNORE_CASE)
         val vrpRegex = Regex("VRP Rate\\s*(\\d+)", RegexOption.IGNORE_CASE)
@@ -92,8 +96,6 @@ class MainActivity : AppCompatActivity() {
         val billNo = billNoRegex.find(rawText)?.groupValues?.get(1) ?: "-"
         val millRate = vrpRegex.find(rawText)?.groupValues?.get(1) ?: "-"
         val jappa = jappaRegex.find(rawText)?.groupValues?.get(1) ?: "-"
-        
-        // Finding Salesman No (First isolated 3-digit number)
         val salesmanNo = salesmanRegex.find(rawText)?.groupValues?.get(1) ?: "-"
 
         addRowToTable(
@@ -122,6 +124,6 @@ class MainActivity : AppCompatActivity() {
             row.addView(textView)
         }
 
-        binding.tableLayout.addView(row)
+        tableLayout.addView(row)
     }
 }
