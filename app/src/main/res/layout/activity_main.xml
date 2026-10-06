@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <ScrollView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent">
+
+            <TableLayout
+                android:id="@+id/tableLayout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="16dp"
+                android:stretchColumns="*">
+                
+                <!-- Table Header -->
+                <TableRow
+                    android:background="#DDDDDD"
+                    android:padding="8dp">
+                    <TextView android:text="No." android:textStyle="bold" android:padding="8dp"/>
+                    <TextView android:text="Salesman No." android:textStyle="bold" android:padding="8dp"/>
+                    <TextView android:text="Barcode" android:textStyle="bold" android:padding="8dp"/>
+                    <TextView android:text="Mill Rate" android:textStyle="bold" android:padding="8dp"/>
+                    <TextView android:text="Bill No." android:textStyle="bold" android:padding="8dp"/>
+                    <TextView android:text="Date" android:textStyle="bold" android:padding="8dp"/>
+                    <TextView android:text="Jappa" android:textStyle="bold" android:padding="8dp"/>
+                </TableRow>
+            </TableLayout>
+        </ScrollView>
+    </HorizontalScrollView>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabCamera"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        android:src="@android:drawable/ic_menu_camera"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
