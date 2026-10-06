@@ -79,13 +79,12 @@ class MainActivity : AppCompatActivity() {
                 // 2. Scan for Text
                 textRecognizer.process(image)
                     .addOnSuccessListener { visionText ->
-                        // Pass the entire visionText object so we can check physical placement
                         extractAndAddData(visionText, barcodeValue)
                     }
             }
     }
 
-    private fun extractAndAddData(visionText: Text, barcode: String) {
+    private fun extractAndAddData(visionText: Text, barcodeScanResult: String) {
         val rawText = visionText.text
 
         // 1. Date: Matches standard DD/MM/YYYY format
@@ -96,24 +95,33 @@ class MainActivity : AppCompatActivity() {
         val jappaRegex = Regex("\\b(E\\d+)\\b", RegexOption.IGNORE_CASE)
         val jappa = jappaRegex.find(rawText)?.groupValues?.get(1) ?: "-"
 
-        // 3. Mill Rate (VRP Rate): Now safely ignores currency symbols (₹) and spaces between the label and number
-        val vrpRegex = Regex("VRP\\s*Rate.*?(\\d{3,5})", RegexOption.IGNORE_CASE)
+        // 3. Mill Rate (FIXED)
+        // Instead of looking for "VRP Rate" which gets split up, we look for the number right before "/-"
+        // This easily extracts "5800" from "5800/-" or "₹ 6800/-"
+        val vrpRegex = Regex("(\\d+)\\s*/\\s*-")
         val millRate = vrpRegex.find(rawText)?.groupValues?.get(1) ?: "-"
 
-        // 4. Bill No: Targets the distinct 5 or 6 digit number (e.g., 49147 or 203849), ignoring 3-digit Tokens
-        val billNoRegex = Regex("\\b(\\d{5,6})\\b")
+        // 4. Bill No (FIXED)
+        // Looks for the words "Bill No", ignores text like "Pcs Net Amount", and grabs the first 5 or 6 digit number it sees next.
+        val billNoRegex = Regex("Bill\\s*No[^0-9]*(\\d{5,6})", RegexOption.IGNORE_CASE)
         val billNo = billNoRegex.find(rawText)?.groupValues?.get(1) ?: "-"
 
-        // 5. Salesman No (Spatial Extraction):
+        // 5. Barcode (FIXED - Fallback)
+        var barcode = barcodeScanResult
+        if (barcode == "-" || barcode.isEmpty()) {
+            // If the camera barcode scanner fails, use text recognition to find the ID printed next to it (e.g., 5-07-8342)
+            val textBarcodeRegex = Regex("\\b(\\d-\\d{2}-\\d{4})\\b")
+            barcode = textBarcodeRegex.find(rawText)?.groupValues?.get(1) ?: "-"
+        }
+
+        // 6. Salesman No (Spatial Extraction - Already Working)
         var salesmanNo = "-"
         val threeDigitBlocks = mutableListOf<Pair<String, Rect>>()
 
-        // Scan through all text blocks visually mapped on the page
         for (block in visionText.textBlocks) {
             for (line in block.lines) {
                 for (element in line.elements) {
                     val text = element.text
-                    // Find ALL 3-digit numbers on the page (This will find both Salesman No and Token No)
                     if (text.matches(Regex("\\b\\d{3}\\b"))) {
                         element.boundingBox?.let { rect ->
                             threeDigitBlocks.add(Pair(text, rect))
@@ -124,9 +132,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (threeDigitBlocks.isNotEmpty()) {
-            // Because the Salesman No is always at the top right of the page, 
-            // we filter the 3-digit numbers by their Y-axis coordinate (top).
-            // This guarantees we pick the number physically highest on the page, avoiding the Token number below it.
+            // Gets the number physically highest on the page
             val topMostBlock = threeDigitBlocks.minByOrNull { it.second.top }
             salesmanNo = topMostBlock?.first ?: "-"
         }
