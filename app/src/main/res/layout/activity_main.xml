@@ -22,17 +22,17 @@
                 android:padding="16dp"
                 android:stretchColumns="*">
                 
-                <!-- Table Header (Now Center Aligned) -->
+                <!-- Table Header (Forced Match Parent Width for true centering) -->
                 <TableRow
                     android:background="#DDDDDD"
                     android:padding="8dp">
-                    <TextView android:text="No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:text="Salesman No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:text="Barcode" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:text="Mill Rate" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:text="Bill No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:text="Date" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:text="Jappa" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Salesman No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Barcode" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Mill Rate" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bill No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Date" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Jappa" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
                 </TableRow>
             </TableLayout>
         </ScrollView>
@@ -47,7 +47,7 @@
         app:layout_constraintBottom_toTopOf="@+id/bottomPanel"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Bottom Panel for the Cut Off Switch -->
+    <!-- Bottom Panel -->
     <LinearLayout
         android:id="@+id/bottomPanel"
         android:layout_width="match_parent"
