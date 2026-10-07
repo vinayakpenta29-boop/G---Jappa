@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Brand Colors -->
+    <color name="primaryColor">#2962FF</color>
+    <color name="primaryDarkColor">#0039CB</color>
+    <color name="colorAccent">#00B0FF</color>
+
+    <!-- Backgrounds & Surfaces -->
+    <color name="appBackground">#F5F7FA</color>
+    <color name="cardSurface">#FFFFFF</color>
+    <color name="bottomPanelBg">#FFFFFF</color>
+
+    <!-- Table Colors -->
+    <color name="tableHeaderBg">#E3F2FD</color>
+    <color name="tableRowBg1">#FFFFFF</color>
+    <color name="tableRowBg2">#F8FAFC</color>
+    <color name="tableTotalBg">#E8F5E9</color>
+
+    <!-- Text Colors -->
+    <color name="textPrimary">#1E293B</color>
+    <color name="textSecondary">#64748B</color>
+    <color name="textSuccess">#15803D</color>
+</resources>
