@@ -86,35 +86,62 @@ class MainActivity : AppCompatActivity() {
 
     private fun extractAndAddData(visionText: Text, barcodeScanResult: String) {
         val rawText = visionText.text
+        
+        // "flatText" puts everything on one line to prevent regex breaking on new lines
+        val flatText = rawText.replace("\n", " ").replace(Regex("\\s+"), " ")
+        // "noSpaceText" removes all spaces. Perfect for finding the Barcode even if the image is sideways.
+        val noSpaceText = rawText.replace(Regex("\\s+"), "") 
 
-        // 1. Date: Matches standard DD/MM/YYYY format
+        // 1. Date
         val dateRegex = Regex("(\\d{2}/\\d{2}/\\d{4})")
         val date = dateRegex.find(rawText)?.groupValues?.get(1) ?: "-"
 
-        // 2. Jappa ("E" value): Matches E followed by numbers (e.g., E200, E500)
+        // 2. Jappa ("E" value)
         val jappaRegex = Regex("\\b(E\\d+)\\b", RegexOption.IGNORE_CASE)
         val jappa = jappaRegex.find(rawText)?.groupValues?.get(1) ?: "-"
 
-        // 3. Mill Rate (FIXED)
-        // Instead of looking for "VRP Rate" which gets split up, we look for the number right before "/-"
-        // This easily extracts "5800" from "5800/-" or "₹ 6800/-"
-        val vrpRegex = Regex("(\\d+)\\s*/\\s*-")
-        val millRate = vrpRegex.find(rawText)?.groupValues?.get(1) ?: "-"
-
-        // 4. Bill No (FIXED)
-        // Looks for the words "Bill No", ignores text like "Pcs Net Amount", and grabs the first 5 or 6 digit number it sees next.
-        val billNoRegex = Regex("Bill\\s*No[^0-9]*(\\d{5,6})", RegexOption.IGNORE_CASE)
-        val billNo = billNoRegex.find(rawText)?.groupValues?.get(1) ?: "-"
-
-        // 5. Barcode (FIXED - Fallback)
+        // 3. Barcode (FIXED for sideways/rotated images)
         var barcode = barcodeScanResult
         if (barcode == "-" || barcode.isEmpty()) {
-            // If the camera barcode scanner fails, use text recognition to find the ID printed next to it (e.g., 5-07-8342)
-            val textBarcodeRegex = Regex("\\b(\\d-\\d{2}-\\d{4})\\b")
-            barcode = textBarcodeRegex.find(rawText)?.groupValues?.get(1) ?: "-"
+            // Because rotated images scramble text with spaces, we search the 'noSpaceText' string
+            val textBarcodeRegex = Regex("(\\d-\\d{2}-\\d{4})")
+            barcode = textBarcodeRegex.find(noSpaceText)?.groupValues?.get(1) ?: "-"
         }
 
-        // 6. Salesman No (Spatial Extraction - Already Working)
+        // 4. Mill Rate / VRP (FIXED to differentiate from MRP)
+        var millRate = "-"
+        val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
+        val vrpMatch = vrpRegex.find(flatText)
+        
+        if (vrpMatch != null) {
+            // If it finds VRP explicitly, grab the number attached to it
+            millRate = vrpMatch.groupValues[1]
+        } else {
+            // Fallback: If VRP isn't explicitly readable, find any number ending in "/-"
+            val generalRateRegex = Regex("(\\d+)\\s*/\\s*-")
+            val matches = generalRateRegex.findAll(flatText).toList()
+            if (matches.isNotEmpty()) {
+                // If multiple prices exist (like MRP and actual price), grab the last one
+                millRate = matches.last().groupValues[1]
+            }
+        }
+
+        // 5. Bill No (FIXED by anchoring to the word "Bill" and grabbing the first 5/6 digit number)
+        var billNo = "-"
+        val billRegex = Regex("Bill.*?(\\d{5,6})", RegexOption.IGNORE_CASE)
+        val billMatch = billRegex.find(flatText)
+        
+        if (billMatch != null) {
+            billNo = billMatch.groupValues[1]
+        } else {
+            // Fallback: If the word "Bill" isn't read, grab the first 5 or 6 digit number found anywhere
+            val fallbackMatches = Regex("\\b(\\d{5,6})\\b").findAll(flatText).toList()
+            if (fallbackMatches.isNotEmpty()) {
+                billNo = fallbackMatches.first().groupValues[1]
+            }
+        }
+
+        // 6. Salesman No (Spatial Extraction - Works Perfectly)
         var salesmanNo = "-"
         val threeDigitBlocks = mutableListOf<Pair<String, Rect>>()
 
@@ -132,7 +159,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (threeDigitBlocks.isNotEmpty()) {
-            // Gets the number physically highest on the page
             val topMostBlock = threeDigitBlocks.minByOrNull { it.second.top }
             salesmanNo = topMostBlock?.first ?: "-"
         }
