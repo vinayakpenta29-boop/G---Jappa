@@ -1,9 +1,11 @@
 package com.example.pricetagreader
 
+import android.content.Context
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.EditText
@@ -21,6 +23,8 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 class MainActivity : AppCompatActivity() {
@@ -29,11 +33,17 @@ class MainActivity : AppCompatActivity() {
     private var serialIndex = 1
     private lateinit var tableLayout: TableLayout
     
-    // Variables for the new features
     private var totalJappaAmount = 0
     private var cutoffPercentage = 0.0
     private lateinit var switchCutOff: SwitchCompat
     private var totalTableRow: TableRow? = null
+    private var savedDataArray = JSONArray()
+
+    // SharedPreferences Keys
+    private val PREFS_NAME = "PriceTagPrefs"
+    private val DATA_KEY = "TableData"
+    private val CUTOFF_PERCENT_KEY = "CutoffPercent"
+    private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { processImage(it) }
@@ -57,28 +67,34 @@ class MainActivity : AppCompatActivity() {
             showImageOptions()
         }
 
-        // Listens to the Cut Off Switch
-        switchCutOff.setOnCheckedChangeListener { _, _ ->
+        switchCutOff.setOnCheckedChangeListener { _, isChecked ->
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(CUTOFF_SWITCH_KEY, isChecked).apply()
             updateTableTotalRow()
         }
+
+        // Load previously saved data when the app opens
+        loadSavedData()
     }
 
-    // Creates the three-dots menu
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
     }
 
-    // Handles the menu click
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.action_cutoff_percentage) {
-            showPercentageDialog()
-            return true
+        return when (item.itemId) {
+            R.id.action_cutoff_percentage -> {
+                showPercentageDialog()
+                true
+            }
+            R.id.action_clear_data -> {
+                clearAllData()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
-        return super.onOptionsItemSelected(item)
     }
 
-    // Opens a popup to ask for the Percentage
     private fun showPercentageDialog() {
         val input = EditText(this)
         input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -90,9 +106,11 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val value = input.text.toString().toDoubleOrNull() ?: 0.0
                 cutoffPercentage = value
-                switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
                 
-                // Automatically turn on the switch when they set a percentage
+                // Save percentage to SharedPreferences
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat(CUTOFF_PERCENT_KEY, value.toFloat()).apply()
+                
+                switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
                 if (!switchCutOff.isChecked && cutoffPercentage > 0) {
                     switchCutOff.isChecked = true
                 }
@@ -100,6 +118,76 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun clearAllData() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear Data")
+            .setMessage("Are you sure you want to clear all scanned tags? This cannot be undone.")
+            .setPositiveButton("Clear") { _, _ ->
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().remove(DATA_KEY).apply()
+                savedDataArray = JSONArray()
+                
+                // Keep the header, remove all other rows
+                val childCount = tableLayout.childCount
+                if (childCount > 1) {
+                    tableLayout.removeViews(1, childCount - 1)
+                }
+                
+                totalJappaAmount = 0
+                serialIndex = 1
+                totalTableRow = null
+                updateTableTotalRow()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun loadSavedData() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val jsonString = prefs.getString(DATA_KEY, "[]")
+        savedDataArray = JSONArray(jsonString)
+
+        cutoffPercentage = prefs.getFloat(CUTOFF_PERCENT_KEY, 0f).toDouble()
+        val isCutoffEnabled = prefs.getBoolean(CUTOFF_SWITCH_KEY, false)
+
+        switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
+        switchCutOff.isChecked = isCutoffEnabled
+
+        for (i in 0 until savedDataArray.length()) {
+            val obj = savedDataArray.getJSONObject(i)
+            val no = obj.optString("no", "")
+            val salesman = obj.optString("salesman", "")
+            val barcode = obj.optString("barcode", "")
+            val millRate = obj.optString("millRate", "")
+            val billNo = obj.optString("billNo", "")
+            val date = obj.optString("date", "")
+            val jappa = obj.optString("jappa", "")
+
+            if (jappa != "-") {
+                val amountString = jappa.replace(Regex("[^0-9]"), "")
+                val amount = amountString.toIntOrNull() ?: 0
+                totalJappaAmount += amount
+            }
+            
+            serialIndex++
+            addRowToTable(no, salesman, barcode, millRate, billNo, date, jappa)
+        }
+        updateTableTotalRow()
+    }
+
+    private fun saveNewRow(no: String, salesman: String, barcode: String, millRate: String, billNo: String, date: String, jappa: String) {
+        val obj = JSONObject()
+        obj.put("no", no)
+        obj.put("salesman", salesman)
+        obj.put("barcode", barcode)
+        obj.put("millRate", millRate)
+        obj.put("billNo", billNo)
+        obj.put("date", date)
+        obj.put("jappa", jappa)
+        
+        savedDataArray.put(obj)
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(DATA_KEY, savedDataArray.toString()).apply()
     }
 
     private fun showImageOptions() {
@@ -149,7 +237,6 @@ class MainActivity : AppCompatActivity() {
         val jappaRegex = Regex("\\b(E\\d+)\\b", RegexOption.IGNORE_CASE)
         val jappa = jappaRegex.find(rawText)?.groupValues?.get(1) ?: "-"
 
-        // Parse Jappa string to Integer (Extracts '500' from 'E500')
         if (jappa != "-") {
             val amountString = jappa.replace(Regex("[^0-9]"), "")
             val amount = amountString.toIntOrNull() ?: 0
@@ -210,17 +297,12 @@ class MainActivity : AppCompatActivity() {
             salesmanNo = topMostBlock?.first ?: "-"
         }
 
-        addRowToTable(
-            no = (serialIndex++).toString(),
-            salesman = salesmanNo,
-            barcode = barcode,
-            millRate = millRate,
-            billNo = billNo,
-            date = date,
-            jappa = jappa
-        )
+        val currentIndex = (serialIndex++).toString()
+        
+        // Save to SharedPreferences so it survives app restarts
+        saveNewRow(currentIndex, salesmanNo, barcode, millRate, billNo, date, jappa)
 
-        // Update the Total Row at the bottom of the table after a new item is added
+        addRowToTable(currentIndex, salesmanNo, barcode, millRate, billNo, date, jappa)
         updateTableTotalRow()
     }
 
@@ -235,6 +317,8 @@ class MainActivity : AppCompatActivity() {
             val textView = TextView(this).apply {
                 this.text = text
                 setPadding(8, 8, 8, 8)
+                // Center Align text programmatically
+                gravity = Gravity.CENTER 
             }
             row.addView(textView)
         }
@@ -242,48 +326,43 @@ class MainActivity : AppCompatActivity() {
         tableLayout.addView(row)
     }
 
-    // Creates, Calculates, and Updates the Total Row at the end of the Table
     private fun updateTableTotalRow() {
-        // Remove the old total row if it exists so we can place the new one at the very bottom
         totalTableRow?.let { tableLayout.removeView(it) }
 
         totalTableRow = TableRow(this).apply { 
             setPadding(0, 16, 0, 16)
-            setBackgroundColor(android.graphics.Color.parseColor("#E8E8E8")) // Light grey background
+            setBackgroundColor(android.graphics.Color.parseColor("#E8E8E8"))
         }
 
-        // Add 5 empty cells to push the totals under Date and Jappa columns
         for (i in 0..4) {
             totalTableRow?.addView(TextView(this))
         }
 
-        // 6th Column (Under Date)
         val labelView = TextView(this).apply {
             text = "Total:"
             setTypeface(null, android.graphics.Typeface.BOLD)
             setPadding(8, 8, 8, 8)
+            gravity = Gravity.CENTER // Center Align Label
         }
         totalTableRow?.addView(labelView)
 
-        // 7th Column (Under Jappa) - Calculates Cut Off
         val totalView = TextView(this).apply {
             var displayText = "$totalJappaAmount"
             
             if (switchCutOff.isChecked && cutoffPercentage > 0) {
                 val discount = totalJappaAmount * (cutoffPercentage / 100.0)
                 val finalAmt = totalJappaAmount - discount
-                // Displays the math clearly (e.g., "1000 - 10% = 900")
                 displayText = "$totalJappaAmount - $cutoffPercentage% = ${String.format("%.1f", finalAmt)}"
             }
             
             text = displayText
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#006400")) // Dark Green Text
+            setTextColor(android.graphics.Color.parseColor("#006400"))
             setPadding(8, 8, 8, 8)
+            gravity = Gravity.CENTER // Center Align Total Math
         }
         totalTableRow?.addView(totalView)
 
-        // Add the updated total row to the end of the table
         tableLayout.addView(totalTableRow)
     }
 }
