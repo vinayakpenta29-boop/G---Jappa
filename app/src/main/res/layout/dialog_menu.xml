@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="16dp"
+    android:paddingBottom="16dp"
+    android:background="@color/cardSurface">
+
+    <TextView
+        android:id="@+id/menuFilter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Filter Data"
+        android:textSize="16sp"
+        android:textColor="@color/textPrimary"
+        android:fontFamily="sans-serif-medium"
+        android:padding="16dp"
+        android:drawableStart="@android:drawable/ic_menu_search"
+        android:drawablePadding="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"/>
+
+    <TextView
+        android:id="@+id/menuPercentage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Set Cut off Percentage"
+        android:textSize="16sp"
+        android:textColor="@color/textPrimary"
+        android:fontFamily="sans-serif-medium"
+        android:padding="16dp"
+        android:drawableStart="@android:drawable/ic_menu_edit"
+        android:drawablePadding="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"/>
+
+    <TextView
+        android:id="@+id/menuClear"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Clear All Data"
+        android:textSize="16sp"
+        android:textColor="#D32F2F"
+        android:fontFamily="sans-serif-medium"
+        android:padding="16dp"
+        android:drawableStart="@android:drawable/ic_menu_delete"
+        android:drawableTint="#D32F2F"
+        android:drawablePadding="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"/>
+</LinearLayout>
