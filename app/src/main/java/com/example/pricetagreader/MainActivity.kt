@@ -17,14 +17,16 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class MainActivity : AppCompatActivity() {
@@ -37,10 +39,12 @@ class MainActivity : AppCompatActivity() {
     private var cutoffPercentage = 0.0
     private lateinit var switchCutOff: SwitchCompat
     private var totalTableRow: TableRow? = null
-    private var savedDataArray = JSONArray()
 
-    private val PREFS_NAME = "PriceTagPrefs"
-    private val DATA_KEY = "TableData"
+    // Room Database
+    private lateinit var database: AppDatabase
+
+    // Settings are still saved in SharedPreferences
+    private val PREFS_NAME = "PriceTagSettings"
     private val CUTOFF_PERCENT_KEY = "CutoffPercent"
     private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
 
@@ -58,6 +62,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        database = AppDatabase.getDatabase(this)
+        
         tableLayout = findViewById(R.id.tableLayout)
         switchCutOff = findViewById(R.id.switchCutOff)
         val fabCamera = findViewById<FloatingActionButton>(R.id.fabCamera)
@@ -122,18 +128,23 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Clear Data")
             .setMessage("Are you sure you want to clear all scanned tags? This cannot be undone.")
             .setPositiveButton("Clear") { _, _ ->
-                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().remove(DATA_KEY).apply()
-                savedDataArray = JSONArray()
-                
-                val childCount = tableLayout.childCount
-                if (childCount > 1) {
-                    tableLayout.removeViews(1, childCount - 1)
+                // Delete from Room Database in the background
+                lifecycleScope.launch(Dispatchers.IO) {
+                    database.priceTagDao().deleteAllTags()
+                    
+                    // Update UI on the main thread
+                    withContext(Dispatchers.Main) {
+                        val childCount = tableLayout.childCount
+                        if (childCount > 1) {
+                            tableLayout.removeViews(1, childCount - 1)
+                        }
+                        
+                        totalJappaAmount = 0
+                        serialIndex = 1
+                        totalTableRow = null
+                        updateTableTotalRow()
+                    }
                 }
-                
-                totalJappaAmount = 0
-                serialIndex = 1
-                totalTableRow = null
-                updateTableTotalRow()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -141,49 +152,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSavedData() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val jsonString = prefs.getString(DATA_KEY, "[]")
-        savedDataArray = JSONArray(jsonString)
-
         cutoffPercentage = prefs.getFloat(CUTOFF_PERCENT_KEY, 0f).toDouble()
         val isCutoffEnabled = prefs.getBoolean(CUTOFF_SWITCH_KEY, false)
 
         switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
         switchCutOff.isChecked = isCutoffEnabled
 
-        for (i in 0 until savedDataArray.length()) {
-            val obj = savedDataArray.getJSONObject(i)
-            val no = obj.optString("no", "")
-            val salesman = obj.optString("salesman", "")
-            val barcode = obj.optString("barcode", "")
-            val millRate = obj.optString("millRate", "")
-            val billNo = obj.optString("billNo", "")
-            val date = obj.optString("date", "")
-            val jappa = obj.optString("jappa", "")
-
-            if (jappa != "-") {
-                val amountString = jappa.replace(Regex("[^0-9]"), "")
-                val amount = amountString.toIntOrNull() ?: 0
-                totalJappaAmount += amount
-            }
+        // Load table data from Room Database
+        lifecycleScope.launch(Dispatchers.IO) {
+            val savedTags = database.priceTagDao().getAllTags()
             
-            serialIndex++
-            addRowToTable(no, salesman, barcode, millRate, billNo, date, jappa)
+            withContext(Dispatchers.Main) {
+                for (tag in savedTags) {
+                    if (tag.jappa != "-") {
+                        val amountString = tag.jappa.replace(Regex("[^0-9]"), "")
+                        totalJappaAmount += (amountString.toIntOrNull() ?: 0)
+                    }
+                    addRowToTable(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa)
+                }
+                
+                // Continue numbering from where the database left off
+                serialIndex = savedTags.size + 1
+                updateTableTotalRow()
+            }
         }
-        updateTableTotalRow()
-    }
-
-    private fun saveNewRow(no: String, salesman: String, barcode: String, millRate: String, billNo: String, date: String, jappa: String) {
-        val obj = JSONObject()
-        obj.put("no", no)
-        obj.put("salesman", salesman)
-        obj.put("barcode", barcode)
-        obj.put("millRate", millRate)
-        obj.put("billNo", billNo)
-        obj.put("date", date)
-        obj.put("jappa", jappa)
-        
-        savedDataArray.put(obj)
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(DATA_KEY, savedDataArray.toString()).apply()
     }
 
     private fun showImageOptions() {
@@ -295,7 +287,21 @@ class MainActivity : AppCompatActivity() {
 
         val currentIndex = (serialIndex++).toString()
         
-        saveNewRow(currentIndex, salesmanNo, barcode, millRate, billNo, date, jappa)
+        // Save new row to Room Database in the background
+        lifecycleScope.launch(Dispatchers.IO) {
+            val newTag = PriceTag(
+                no = currentIndex,
+                salesman = salesmanNo,
+                barcode = barcode,
+                millRate = millRate,
+                billNo = billNo,
+                date = date,
+                jappa = jappa
+            )
+            database.priceTagDao().insertTag(newTag)
+        }
+
+        // Update UI immediately
         addRowToTable(currentIndex, salesmanNo, barcode, millRate, billNo, date, jappa)
         updateTableTotalRow()
     }
@@ -311,8 +317,6 @@ class MainActivity : AppCompatActivity() {
             val textView = TextView(this).apply {
                 this.text = text
                 setPadding(8, 8, 8, 8)
-                
-                // Forces the text to center exactly by matching the column width
                 layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
                 gravity = Gravity.CENTER 
             }
@@ -341,8 +345,6 @@ class MainActivity : AppCompatActivity() {
             text = "Total:"
             setTypeface(null, android.graphics.Typeface.BOLD)
             setPadding(8, 8, 8, 8)
-            
-            // Forces label to center
             layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
             gravity = Gravity.CENTER 
         }
@@ -361,8 +363,6 @@ class MainActivity : AppCompatActivity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#006400"))
             setPadding(8, 8, 8, 8)
-            
-            // Forces total amount to center
             layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
             gravity = Gravity.CENTER 
         }
