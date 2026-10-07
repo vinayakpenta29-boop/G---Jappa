@@ -39,7 +39,6 @@ class MainActivity : AppCompatActivity() {
     private var totalTableRow: TableRow? = null
     private var savedDataArray = JSONArray()
 
-    // SharedPreferences Keys
     private val PREFS_NAME = "PriceTagPrefs"
     private val DATA_KEY = "TableData"
     private val CUTOFF_PERCENT_KEY = "CutoffPercent"
@@ -72,7 +71,6 @@ class MainActivity : AppCompatActivity() {
             updateTableTotalRow()
         }
 
-        // Load previously saved data when the app opens
         loadSavedData()
     }
 
@@ -107,7 +105,6 @@ class MainActivity : AppCompatActivity() {
                 val value = input.text.toString().toDoubleOrNull() ?: 0.0
                 cutoffPercentage = value
                 
-                // Save percentage to SharedPreferences
                 getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat(CUTOFF_PERCENT_KEY, value.toFloat()).apply()
                 
                 switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
@@ -128,7 +125,6 @@ class MainActivity : AppCompatActivity() {
                 getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().remove(DATA_KEY).apply()
                 savedDataArray = JSONArray()
                 
-                // Keep the header, remove all other rows
                 val childCount = tableLayout.childCount
                 if (childCount > 1) {
                     tableLayout.removeViews(1, childCount - 1)
@@ -299,9 +295,7 @@ class MainActivity : AppCompatActivity() {
 
         val currentIndex = (serialIndex++).toString()
         
-        // Save to SharedPreferences so it survives app restarts
         saveNewRow(currentIndex, salesmanNo, barcode, millRate, billNo, date, jappa)
-
         addRowToTable(currentIndex, salesmanNo, barcode, millRate, billNo, date, jappa)
         updateTableTotalRow()
     }
@@ -317,7 +311,9 @@ class MainActivity : AppCompatActivity() {
             val textView = TextView(this).apply {
                 this.text = text
                 setPadding(8, 8, 8, 8)
-                // Center Align text programmatically
+                
+                // Forces the text to center exactly by matching the column width
+                layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
                 gravity = Gravity.CENTER 
             }
             row.addView(textView)
@@ -335,14 +331,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         for (i in 0..4) {
-            totalTableRow?.addView(TextView(this))
+            val emptyView = TextView(this).apply {
+                layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+            }
+            totalTableRow?.addView(emptyView)
         }
 
         val labelView = TextView(this).apply {
             text = "Total:"
             setTypeface(null, android.graphics.Typeface.BOLD)
             setPadding(8, 8, 8, 8)
-            gravity = Gravity.CENTER // Center Align Label
+            
+            // Forces label to center
+            layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER 
         }
         totalTableRow?.addView(labelView)
 
@@ -359,7 +361,10 @@ class MainActivity : AppCompatActivity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#006400"))
             setPadding(8, 8, 8, 8)
-            gravity = Gravity.CENTER // Center Align Total Math
+            
+            // Forces total amount to center
+            layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER 
         }
         totalTableRow?.addView(totalView)
 
