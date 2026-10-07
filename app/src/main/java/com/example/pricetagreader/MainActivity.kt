@@ -2,6 +2,7 @@ package com.example.pricetagreader
 
 import android.content.Context
 import android.graphics.Rect
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
@@ -19,9 +20,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
@@ -36,6 +38,10 @@ class MainActivity : AppCompatActivity() {
 
     private var tempImageUri: Uri? = null
     private var serialIndex = 1
+    
+    // UI tracking for Zebra Striping
+    private var displayedRowIndex = 0 
+    
     private lateinit var tableLayout: TableLayout
     
     private var totalJappaAmount = 0
@@ -43,10 +49,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchCutOff: SwitchCompat
     private var totalTableRow: TableRow? = null
 
-    // Filter State
     private var activeFilters = mutableMapOf<String, String>()
-
-    // Room Database
     private lateinit var database: AppDatabase
 
     private val PREFS_NAME = "PriceTagSettings"
@@ -65,13 +68,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Hide default Action Bar for a cleaner premium look
+        supportActionBar?.hide() 
         setContentView(R.layout.activity_main)
 
         database = AppDatabase.getDatabase(this)
         
         tableLayout = findViewById(R.id.tableLayout)
         switchCutOff = findViewById(R.id.switchCutOff)
-        val fabCamera = findViewById<FloatingActionButton>(R.id.fabCamera)
+        val fabCamera = findViewById<ExtendedFloatingActionButton>(R.id.fabCamera)
 
         fabCamera.setOnClickListener {
             showImageOptions()
@@ -85,40 +90,31 @@ class MainActivity : AppCompatActivity() {
         loadSavedData()
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_filter -> {
-                showFilterDialog()
-                true
-            }
-            R.id.action_cutoff_percentage -> {
-                showPercentageDialog()
-                true
-            }
-            R.id.action_clear_data -> {
-                clearAllData()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
+    // Since we hid the Action Bar, let's create a custom settings button or just show the dialogs directly.
+    // For simplicity, we will show options when clicking the Title.
+    override fun onStart() {
+        super.onStart()
+        findViewById<TextView>(R.id.tvAppTitle).setOnClickListener {
+            val menuOptions = arrayOf("Filter Data", "Set Cut off Percentage", "Clear All Data")
+            AlertDialog.Builder(this)
+                .setTitle("Menu")
+                .setItems(menuOptions) { _, which ->
+                    when (which) {
+                        0 -> showFilterDialog()
+                        1 -> showPercentageDialog()
+                        2 -> clearAllData()
+                    }
+                }.show()
         }
     }
 
     private fun showFilterDialog() {
-        // Fetch data in background to find all available Months
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
             
-            // Extract unique MM/YYYY combinations from DD/MM/YYYY
             val availableMonths = allTags.mapNotNull { tag ->
                 val parts = tag.date.split("/")
-                if (parts.size == 3) {
-                    "${parts[1]}/${parts[2]}" // Extracts MM/YYYY
-                } else null
+                if (parts.size == 3) "${parts[1]}/${parts[2]}" else null
             }.distinct().sorted()
 
             val spinnerOptions = mutableListOf("All Months")
@@ -126,7 +122,6 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 val view = layoutInflater.inflate(R.layout.dialog_filter, null)
-                
                 val spinnerMonth = view.findViewById<Spinner>(R.id.spinnerFilterMonth)
                 val etDate = view.findViewById<EditText>(R.id.etFilterDate)
                 val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
@@ -135,18 +130,15 @@ class MainActivity : AppCompatActivity() {
                 val etMillRate = view.findViewById<EditText>(R.id.etFilterMillRate)
                 val etSalesman = view.findViewById<EditText>(R.id.etFilterSalesman)
 
-                // Setup Spinner adapter
                 val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, spinnerOptions)
                 spinnerMonth.adapter = adapter
 
-                // Set pre-selected Month if it exists in filters
                 val activeMonth = activeFilters["month"]
                 if (!activeMonth.isNullOrEmpty()) {
                     val position = spinnerOptions.indexOf(activeMonth)
                     if (position >= 0) spinnerMonth.setSelection(position)
                 }
 
-                // Pre-fill existing text filters
                 etDate.setText(activeFilters["date"] ?: "")
                 etBarcode.setText(activeFilters["barcode"] ?: "")
                 etBillNo.setText(activeFilters["billNo"] ?: "")
@@ -154,7 +146,7 @@ class MainActivity : AppCompatActivity() {
                 etMillRate.setText(activeFilters["millRate"] ?: "")
                 etSalesman.setText(activeFilters["salesman"] ?: "")
 
-                AlertDialog.Builder(this@MainActivity)
+                AlertDialog.Builder(this@MainActivity, R.style.Theme_AppCompat_Light_Dialog_Alert)
                     .setTitle("Filter Data")
                     .setView(view)
                     .setPositiveButton("Apply") { _, _ ->
@@ -174,7 +166,7 @@ class MainActivity : AppCompatActivity() {
 
                         refreshTable()
                     }
-                    .setNeutralButton("Clear Filters") { _, _ ->
+                    .setNeutralButton("Clear") { _, _ ->
                         activeFilters.clear()
                         refreshTable()
                     }
@@ -188,6 +180,7 @@ class MainActivity : AppCompatActivity() {
         val input = EditText(this)
         input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
         input.hint = "Enter percentage (e.g., 10)"
+        input.setPadding(48, 32, 48, 32)
 
         AlertDialog.Builder(this)
             .setTitle("Set Cut off Percentage")
@@ -268,6 +261,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 totalJappaAmount = 0
+                displayedRowIndex = 0
                 totalTableRow = null
 
                 for (tag in filteredTags) {
@@ -407,7 +401,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun addRowToTable(no: String, salesman: String, barcode: String, millRate: String, billNo: String, date: String, jappa: String) {
         val row = TableRow(this).apply {
-            setPadding(0, 8, 0, 8)
+            // Apply Premium Zebra Striping
+            val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
         }
 
         val dataList = listOf(no, salesman, barcode, millRate, billNo, date, jappa)
@@ -415,7 +411,9 @@ class MainActivity : AppCompatActivity() {
         for (text in dataList) {
             val textView = TextView(this).apply {
                 this.text = text
-                setPadding(8, 8, 8, 8)
+                setPadding(16, 24, 16, 24) // Breathable Spacing
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
+                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
                 layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
                 gravity = Gravity.CENTER 
             }
@@ -423,14 +421,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         tableLayout.addView(row)
+        displayedRowIndex++
     }
 
     private fun updateTableTotalRow() {
         totalTableRow?.let { tableLayout.removeView(it) }
 
         totalTableRow = TableRow(this).apply { 
-            setPadding(0, 16, 0, 16)
-            setBackgroundColor(android.graphics.Color.parseColor("#E8E8E8"))
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.tableTotalBg))
         }
 
         for (i in 0..4) {
@@ -442,8 +440,9 @@ class MainActivity : AppCompatActivity() {
 
         val labelView = TextView(this).apply {
             text = "Total:"
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setPadding(8, 8, 8, 8)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textPrimary))
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setPadding(16, 24, 16, 24)
             layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
             gravity = Gravity.CENTER 
         }
@@ -459,9 +458,9 @@ class MainActivity : AppCompatActivity() {
             }
             
             text = displayText
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#006400"))
-            setPadding(8, 8, 8, 8)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSuccess))
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setPadding(16, 24, 16, 24)
             layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
             gravity = Gravity.CENTER 
         }
