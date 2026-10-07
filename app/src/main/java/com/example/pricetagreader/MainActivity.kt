@@ -88,12 +88,13 @@ class MainActivity : AppCompatActivity() {
         loadSavedData()
     }
 
-    // Displays the Premium Custom Menu when the Title is clicked
     override fun onStart() {
         super.onStart()
         findViewById<TextView>(R.id.tvAppTitle).setOnClickListener {
             val menuView = layoutInflater.inflate(R.layout.dialog_menu, null)
-            val dialog = MaterialAlertDialogBuilder(this)
+            
+            // Applied RoundedDialogTheme
+            val dialog = MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
                 .setTitle("Menu Options")
                 .setView(menuView)
                 .show()
@@ -128,7 +129,6 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 val view = layoutInflater.inflate(R.layout.dialog_filter, null)
                 
-                // Using AutoCompleteTextView for the Material Exposed Dropdown
                 val spinnerMonth = view.findViewById<AutoCompleteTextView>(R.id.spinnerFilterMonth)
                 val etDate = view.findViewById<EditText>(R.id.etFilterDate)
                 val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
 
                 val activeMonth = activeFilters["month"]
                 if (!activeMonth.isNullOrEmpty()) {
-                    spinnerMonth.setText(activeMonth, false) // false prevents the dropdown from opening automatically
+                    spinnerMonth.setText(activeMonth, false) 
                 } else {
                     spinnerMonth.setText("All Months", false)
                 }
@@ -154,7 +154,8 @@ class MainActivity : AppCompatActivity() {
                 etMillRate.setText(activeFilters["millRate"] ?: "")
                 etSalesman.setText(activeFilters["salesman"] ?: "")
 
-                MaterialAlertDialogBuilder(this@MainActivity)
+                // Applied RoundedDialogTheme
+                MaterialAlertDialogBuilder(this@MainActivity, R.style.RoundedDialogTheme)
                     .setTitle("Filter Data")
                     .setView(view)
                     .setPositiveButton("Apply") { _, _ ->
@@ -188,7 +189,8 @@ class MainActivity : AppCompatActivity() {
         val view = layoutInflater.inflate(R.layout.dialog_percentage, null)
         val etPercentage = view.findViewById<EditText>(R.id.etPercentage)
 
-        MaterialAlertDialogBuilder(this)
+        // Applied RoundedDialogTheme
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Set Cut off Percentage")
             .setView(view)
             .setPositiveButton("Save") { _, _ ->
@@ -208,7 +210,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearAllData() {
-        MaterialAlertDialogBuilder(this)
+        // Applied RoundedDialogTheme
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Clear Data")
             .setMessage("Are you sure you want to clear all scanned tags? This cannot be undone.")
             .setPositiveButton("Clear") { _, _ ->
@@ -285,7 +288,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun showImageOptions() {
         val options = arrayOf("Gallery", "Open Camera")
-        MaterialAlertDialogBuilder(this)
+        
+        // Applied RoundedDialogTheme
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Select Image Source")
             .setItems(options) { _, which ->
                 if (which == 0) {
