@@ -22,17 +22,17 @@
                 android:padding="16dp"
                 android:stretchColumns="*">
                 
-                <!-- Table Header -->
+                <!-- Table Header (Now Center Aligned) -->
                 <TableRow
                     android:background="#DDDDDD"
                     android:padding="8dp">
-                    <TextView android:text="No." android:textStyle="bold" android:padding="8dp"/>
-                    <TextView android:text="Salesman No." android:textStyle="bold" android:padding="8dp"/>
-                    <TextView android:text="Barcode" android:textStyle="bold" android:padding="8dp"/>
-                    <TextView android:text="Mill Rate" android:textStyle="bold" android:padding="8dp"/>
-                    <TextView android:text="Bill No." android:textStyle="bold" android:padding="8dp"/>
-                    <TextView android:text="Date" android:textStyle="bold" android:padding="8dp"/>
-                    <TextView android:text="Jappa" android:textStyle="bold" android:padding="8dp"/>
+                    <TextView android:text="No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:text="Salesman No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:text="Barcode" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:text="Mill Rate" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:text="Bill No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:text="Date" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
+                    <TextView android:text="Jappa" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
                 </TableRow>
             </TableLayout>
         </ScrollView>
