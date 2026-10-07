@@ -5,4 +5,8 @@
         android:id="@+id/action_cutoff_percentage"
         android:title="Cut off Percentage"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/action_clear_data"
+        android:title="Clear All Data"
+        app:showAsAction="never" />
 </menu>
