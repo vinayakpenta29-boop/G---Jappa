@@ -3,67 +3,111 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/appBackground">
 
-    <HorizontalScrollView
+    <!-- Premium App Title -->
+    <TextView
+        android:id="@+id/tvAppTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Price Tag Reader"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="@color/primaryColor"
+        android:fontFamily="sans-serif-black"
+        android:layout_margin="20dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Main Table Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardTable"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="16dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="@color/cardSurface"
+        app:strokeWidth="0dp"
+        app:layout_constraintTop_toBottomOf="@id/tvAppTitle"
         app:layout_constraintBottom_toTopOf="@+id/bottomPanel">
 
-        <ScrollView
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent">
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="none">
 
-            <TableLayout
-                android:id="@+id/tableLayout"
+            <ScrollView
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:stretchColumns="*">
-                
-                <!-- Table Header (Forced Match Parent Width for true centering) -->
-                <TableRow
-                    android:background="#DDDDDD"
-                    android:padding="8dp">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Salesman No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Barcode" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Mill Rate" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bill No." android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Date" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Jappa" android:textStyle="bold" android:padding="8dp" android:gravity="center"/>
-                </TableRow>
-            </TableLayout>
-        </ScrollView>
-    </HorizontalScrollView>
+                android:layout_height="match_parent"
+                android:scrollbars="none">
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+                <TableLayout
+                    android:id="@+id/tableLayout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:stretchColumns="*">
+                    
+                    <!-- Table Header -->
+                    <TableRow
+                        android:background="@color/tableHeaderBg">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No." android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Salesman" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Barcode" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Mill Rate" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bill No." android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Date" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Jappa" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                    </TableRow>
+                </TableLayout>
+            </ScrollView>
+        </HorizontalScrollView>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Extended FAB for a modern look -->
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fabCamera"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:src="@android:drawable/ic_menu_camera"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="24dp"
+        android:text="Scan Tag"
+        android:textColor="@android:color/white"
+        app:icon="@android:drawable/ic_menu_camera"
+        app:iconTint="@android:color/white"
+        app:backgroundTint="@color/primaryColor"
         app:layout_constraintBottom_toTopOf="@+id/bottomPanel"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Bottom Panel -->
-    <LinearLayout
+    <!-- Bottom Control Panel Card -->
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/bottomPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#EEEEEE"
-        android:padding="16dp"
-        android:elevation="8dp"
+        app:cardElevation="16dp"
+        app:cardCornerRadius="0dp"
+        app:strokeWidth="0dp"
+        app:cardBackgroundColor="@color/bottomPanelBg"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/switchCutOff"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Apply Cut Off (0%)"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="16dp">
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchCutOff"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Apply Cut Off (0%)"
+                android:textColor="@color/textPrimary"
+                android:fontFamily="sans-serif-medium"
+                android:textSize="16sp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
