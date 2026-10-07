@@ -10,19 +10,19 @@ import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.EditText
-import android.widget.Spinner
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
@@ -39,7 +39,6 @@ class MainActivity : AppCompatActivity() {
     private var tempImageUri: Uri? = null
     private var serialIndex = 1
     
-    // UI tracking for Zebra Striping
     private var displayedRowIndex = 0 
     
     private lateinit var tableLayout: TableLayout
@@ -68,7 +67,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Hide default Action Bar for a cleaner premium look
         supportActionBar?.hide() 
         setContentView(R.layout.activity_main)
 
@@ -90,20 +88,28 @@ class MainActivity : AppCompatActivity() {
         loadSavedData()
     }
 
-    // Opens the Menu when the premium title is clicked
+    // Displays the Premium Custom Menu when the Title is clicked
     override fun onStart() {
         super.onStart()
         findViewById<TextView>(R.id.tvAppTitle).setOnClickListener {
-            val menuOptions = arrayOf("Filter Data", "Set Cut off Percentage", "Clear All Data")
-            AlertDialog.Builder(this)
-                .setTitle("Menu")
-                .setItems(menuOptions) { _, which ->
-                    when (which) {
-                        0 -> showFilterDialog()
-                        1 -> showPercentageDialog()
-                        2 -> clearAllData()
-                    }
-                }.show()
+            val menuView = layoutInflater.inflate(R.layout.dialog_menu, null)
+            val dialog = MaterialAlertDialogBuilder(this)
+                .setTitle("Menu Options")
+                .setView(menuView)
+                .show()
+
+            menuView.findViewById<TextView>(R.id.menuFilter).setOnClickListener {
+                dialog.dismiss()
+                showFilterDialog()
+            }
+            menuView.findViewById<TextView>(R.id.menuPercentage).setOnClickListener {
+                dialog.dismiss()
+                showPercentageDialog()
+            }
+            menuView.findViewById<TextView>(R.id.menuClear).setOnClickListener {
+                dialog.dismiss()
+                clearAllData()
+            }
         }
     }
 
@@ -121,7 +127,9 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 val view = layoutInflater.inflate(R.layout.dialog_filter, null)
-                val spinnerMonth = view.findViewById<Spinner>(R.id.spinnerFilterMonth)
+                
+                // Using AutoCompleteTextView for the Material Exposed Dropdown
+                val spinnerMonth = view.findViewById<AutoCompleteTextView>(R.id.spinnerFilterMonth)
                 val etDate = view.findViewById<EditText>(R.id.etFilterDate)
                 val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
                 val etBillNo = view.findViewById<EditText>(R.id.etFilterBillNo)
@@ -129,13 +137,14 @@ class MainActivity : AppCompatActivity() {
                 val etMillRate = view.findViewById<EditText>(R.id.etFilterMillRate)
                 val etSalesman = view.findViewById<EditText>(R.id.etFilterSalesman)
 
-                val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, spinnerOptions)
-                spinnerMonth.adapter = adapter
+                val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_dropdown_item_1line, spinnerOptions)
+                spinnerMonth.setAdapter(adapter)
 
                 val activeMonth = activeFilters["month"]
                 if (!activeMonth.isNullOrEmpty()) {
-                    val position = spinnerOptions.indexOf(activeMonth)
-                    if (position >= 0) spinnerMonth.setSelection(position)
+                    spinnerMonth.setText(activeMonth, false) // false prevents the dropdown from opening automatically
+                } else {
+                    spinnerMonth.setText("All Months", false)
                 }
 
                 etDate.setText(activeFilters["date"] ?: "")
@@ -145,13 +154,12 @@ class MainActivity : AppCompatActivity() {
                 etMillRate.setText(activeFilters["millRate"] ?: "")
                 etSalesman.setText(activeFilters["salesman"] ?: "")
 
-                // FIXED: Removed the R.style reference that caused the crash
-                AlertDialog.Builder(this@MainActivity)
+                MaterialAlertDialogBuilder(this@MainActivity)
                     .setTitle("Filter Data")
                     .setView(view)
                     .setPositiveButton("Apply") { _, _ ->
-                        val selectedMonth = spinnerMonth.selectedItem.toString()
-                        if (selectedMonth == "All Months") {
+                        val selectedMonth = spinnerMonth.text.toString()
+                        if (selectedMonth == "All Months" || selectedMonth.isEmpty()) {
                             activeFilters.remove("month")
                         } else {
                             activeFilters["month"] = selectedMonth
@@ -177,16 +185,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPercentageDialog() {
-        val input = EditText(this)
-        input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-        input.hint = "Enter percentage (e.g., 10)"
-        input.setPadding(48, 32, 48, 32)
+        val view = layoutInflater.inflate(R.layout.dialog_percentage, null)
+        val etPercentage = view.findViewById<EditText>(R.id.etPercentage)
 
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Set Cut off Percentage")
-            .setView(input)
+            .setView(view)
             .setPositiveButton("Save") { _, _ ->
-                val value = input.text.toString().toDoubleOrNull() ?: 0.0
+                val value = etPercentage.text.toString().toDoubleOrNull() ?: 0.0
                 cutoffPercentage = value
                 
                 getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat(CUTOFF_PERCENT_KEY, value.toFloat()).apply()
@@ -202,7 +208,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearAllData() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Clear Data")
             .setMessage("Are you sure you want to clear all scanned tags? This cannot be undone.")
             .setPositiveButton("Clear") { _, _ ->
@@ -279,7 +285,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showImageOptions() {
         val options = arrayOf("Gallery", "Open Camera")
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Select Image Source")
             .setItems(options) { _, which ->
                 if (which == 0) {
