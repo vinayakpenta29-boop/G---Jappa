@@ -10,8 +10,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }  // Moved JitPack here
     }
 }
-rootProject.name = "ChitFundManager"
+
+rootProject.name = "PriceTagReader" // Keep this as your actual project name (e.g., "ChitFundManager")
 include ':app'
