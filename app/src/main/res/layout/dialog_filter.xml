@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Leave fields blank to ignore them"
+            android:textStyle="italic"
+            android:layout_marginBottom="16dp"/>
+
+        <EditText android:id="@+id/etFilterMonth" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Month/Year (e.g., 10/2026)" android:layout_marginBottom="12dp" android:inputType="text"/>
+        <EditText android:id="@+id/etFilterDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Specific Date (e.g., 04/10/2026)" android:layout_marginBottom="12dp" android:inputType="text"/>
+        <EditText android:id="@+id/etFilterBarcode" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Barcode" android:layout_marginBottom="12dp" android:inputType="text"/>
+        <EditText android:id="@+id/etFilterBillNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Bill No." android:layout_marginBottom="12dp" android:inputType="number"/>
+        <EditText android:id="@+id/etFilterJappa" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Jappa (e.g., E200)" android:layout_marginBottom="12dp" android:inputType="text"/>
+        <EditText android:id="@+id/etFilterMillRate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Mill Rate" android:layout_marginBottom="12dp" android:inputType="number"/>
+        <EditText android:id="@+id/etFilterSalesman" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Salesman No." android:layout_marginBottom="12dp" android:inputType="number"/>
+
+    </LinearLayout>
+</ScrollView>
