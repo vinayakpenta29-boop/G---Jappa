@@ -4,8 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingTop="16dp"
-    android:paddingBottom="16dp"
-    android:background="@color/cardSurface">
+    android:paddingBottom="16dp">
 
     <TextView
         android:id="@+id/menuFilter"
