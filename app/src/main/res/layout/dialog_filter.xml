@@ -16,7 +16,22 @@
             android:textStyle="italic"
             android:layout_marginBottom="16dp"/>
 
-        <EditText android:id="@+id/etFilterMonth" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Month/Year (e.g., 10/2026)" android:layout_marginBottom="12dp" android:inputType="text"/>
+        <!-- Updated to a Spinner for Dynamic Month/Year selection -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Filter by Month/Year:"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp"/>
+            
+        <Spinner
+            android:id="@+id/spinnerFilterMonth"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:minHeight="48dp"
+            android:background="@android:drawable/btn_dropdown" />
+
         <EditText android:id="@+id/etFilterDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Specific Date (e.g., 04/10/2026)" android:layout_marginBottom="12dp" android:inputType="text"/>
         <EditText android:id="@+id/etFilterBarcode" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Barcode" android:layout_marginBottom="12dp" android:inputType="text"/>
         <EditText android:id="@+id/etFilterBillNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Bill No." android:layout_marginBottom="12dp" android:inputType="number"/>
