@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/cardSurface">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,31 +14,33 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Leave fields blank to ignore them"
-            android:textStyle="italic"
-            android:layout_marginBottom="16dp"/>
+            android:textColor="@color/textSecondary"
+            android:fontFamily="sans-serif"
+            android:textSize="14sp"
+            android:layout_marginBottom="24dp"/>
 
-        <!-- Updated to a Spinner for Dynamic Month/Year selection -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Filter by Month/Year:"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp"/>
+            android:textColor="@color/primaryColor"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginBottom="8dp"/>
             
         <Spinner
             android:id="@+id/spinnerFilterMonth"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="20dp"
             android:minHeight="48dp"
             android:background="@android:drawable/btn_dropdown" />
 
-        <EditText android:id="@+id/etFilterDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Specific Date (e.g., 04/10/2026)" android:layout_marginBottom="12dp" android:inputType="text"/>
-        <EditText android:id="@+id/etFilterBarcode" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Barcode" android:layout_marginBottom="12dp" android:inputType="text"/>
-        <EditText android:id="@+id/etFilterBillNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Bill No." android:layout_marginBottom="12dp" android:inputType="number"/>
-        <EditText android:id="@+id/etFilterJappa" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Jappa (e.g., E200)" android:layout_marginBottom="12dp" android:inputType="text"/>
-        <EditText android:id="@+id/etFilterMillRate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Mill Rate" android:layout_marginBottom="12dp" android:inputType="number"/>
-        <EditText android:id="@+id/etFilterSalesman" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Salesman No." android:layout_marginBottom="12dp" android:inputType="number"/>
+        <EditText android:id="@+id/etFilterDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Specific Date (e.g., 04/10/2026)" android:layout_marginBottom="16dp" android:inputType="text"/>
+        <EditText android:id="@+id/etFilterBarcode" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Barcode" android:layout_marginBottom="16dp" android:inputType="text"/>
+        <EditText android:id="@+id/etFilterBillNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Bill No." android:layout_marginBottom="16dp" android:inputType="number"/>
+        <EditText android:id="@+id/etFilterJappa" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Jappa (e.g., E200)" android:layout_marginBottom="16dp" android:inputType="text"/>
+        <EditText android:id="@+id/etFilterMillRate" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Mill Rate" android:layout_marginBottom="16dp" android:inputType="number"/>
+        <EditText android:id="@+id/etFilterSalesman" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Salesman No." android:layout_marginBottom="16dp" android:inputType="number"/>
 
     </LinearLayout>
 </ScrollView>
