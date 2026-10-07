@@ -90,8 +90,7 @@ class MainActivity : AppCompatActivity() {
         loadSavedData()
     }
 
-    // Since we hid the Action Bar, let's create a custom settings button or just show the dialogs directly.
-    // For simplicity, we will show options when clicking the Title.
+    // Opens the Menu when the premium title is clicked
     override fun onStart() {
         super.onStart()
         findViewById<TextView>(R.id.tvAppTitle).setOnClickListener {
@@ -146,7 +145,8 @@ class MainActivity : AppCompatActivity() {
                 etMillRate.setText(activeFilters["millRate"] ?: "")
                 etSalesman.setText(activeFilters["salesman"] ?: "")
 
-                AlertDialog.Builder(this@MainActivity, R.style.Theme_AppCompat_Light_Dialog_Alert)
+                // FIXED: Removed the R.style reference that caused the crash
+                AlertDialog.Builder(this@MainActivity)
                     .setTitle("Filter Data")
                     .setView(view)
                     .setPositiveButton("Apply") { _, _ ->
@@ -401,7 +401,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun addRowToTable(no: String, salesman: String, barcode: String, millRate: String, billNo: String, date: String, jappa: String) {
         val row = TableRow(this).apply {
-            // Apply Premium Zebra Striping
             val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
         }
@@ -411,7 +410,7 @@ class MainActivity : AppCompatActivity() {
         for (text in dataList) {
             val textView = TextView(this).apply {
                 this.text = text
-                setPadding(16, 24, 16, 24) // Breathable Spacing
+                setPadding(16, 24, 16, 24)
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
                 typeface = Typeface.create("sans-serif", Typeface.NORMAL)
                 layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
