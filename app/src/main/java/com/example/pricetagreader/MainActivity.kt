@@ -12,6 +12,7 @@ import android.widget.EditText
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -40,10 +41,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchCutOff: SwitchCompat
     private var totalTableRow: TableRow? = null
 
+    // Filter State
+    private var activeFilters = mutableMapOf<String, String>()
+
     // Room Database
     private lateinit var database: AppDatabase
 
-    // Settings are still saved in SharedPreferences
     private val PREFS_NAME = "PriceTagSettings"
     private val CUTOFF_PERCENT_KEY = "CutoffPercent"
     private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
@@ -87,6 +90,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_filter -> {
+                showFilterDialog()
+                true
+            }
             R.id.action_cutoff_percentage -> {
                 showPercentageDialog()
                 true
@@ -97,6 +104,47 @@ class MainActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    private fun showFilterDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_filter, null)
+        val etMonth = view.findViewById<EditText>(R.id.etFilterMonth)
+        val etDate = view.findViewById<EditText>(R.id.etFilterDate)
+        val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
+        val etBillNo = view.findViewById<EditText>(R.id.etFilterBillNo)
+        val etJappa = view.findViewById<EditText>(R.id.etFilterJappa)
+        val etMillRate = view.findViewById<EditText>(R.id.etFilterMillRate)
+        val etSalesman = view.findViewById<EditText>(R.id.etFilterSalesman)
+
+        // Pre-fill existing filters if any
+        etMonth.setText(activeFilters["month"] ?: "")
+        etDate.setText(activeFilters["date"] ?: "")
+        etBarcode.setText(activeFilters["barcode"] ?: "")
+        etBillNo.setText(activeFilters["billNo"] ?: "")
+        etJappa.setText(activeFilters["jappa"] ?: "")
+        etMillRate.setText(activeFilters["millRate"] ?: "")
+        etSalesman.setText(activeFilters["salesman"] ?: "")
+
+        AlertDialog.Builder(this)
+            .setTitle("Filter Data")
+            .setView(view)
+            .setPositiveButton("Apply") { _, _ ->
+                activeFilters["month"] = etMonth.text.toString().trim()
+                activeFilters["date"] = etDate.text.toString().trim()
+                activeFilters["barcode"] = etBarcode.text.toString().trim()
+                activeFilters["billNo"] = etBillNo.text.toString().trim()
+                activeFilters["jappa"] = etJappa.text.toString().trim()
+                activeFilters["millRate"] = etMillRate.text.toString().trim()
+                activeFilters["salesman"] = etSalesman.text.toString().trim()
+
+                refreshTable()
+            }
+            .setNeutralButton("Clear Filters") { _, _ ->
+                activeFilters.clear()
+                refreshTable()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showPercentageDialog() {
@@ -128,21 +176,13 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Clear Data")
             .setMessage("Are you sure you want to clear all scanned tags? This cannot be undone.")
             .setPositiveButton("Clear") { _, _ ->
-                // Delete from Room Database in the background
                 lifecycleScope.launch(Dispatchers.IO) {
                     database.priceTagDao().deleteAllTags()
+                    activeFilters.clear()
                     
-                    // Update UI on the main thread
                     withContext(Dispatchers.Main) {
-                        val childCount = tableLayout.childCount
-                        if (childCount > 1) {
-                            tableLayout.removeViews(1, childCount - 1)
-                        }
-                        
-                        totalJappaAmount = 0
                         serialIndex = 1
-                        totalTableRow = null
-                        updateTableTotalRow()
+                        refreshTable()
                     }
                 }
             }
@@ -158,12 +198,44 @@ class MainActivity : AppCompatActivity() {
         switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
         switchCutOff.isChecked = isCutoffEnabled
 
-        // Load table data from Room Database
         lifecycleScope.launch(Dispatchers.IO) {
-            val savedTags = database.priceTagDao().getAllTags()
+            val allTags = database.priceTagDao().getAllTags()
+            serialIndex = allTags.size + 1
             
             withContext(Dispatchers.Main) {
-                for (tag in savedTags) {
+                refreshTable()
+            }
+        }
+    }
+
+    // Fetches all data, applies active filters, recalculates totals, and updates UI
+    private fun refreshTable() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            
+            val filteredTags = allTags.filter { tag ->
+                var matches = true
+                if (activeFilters["month"]?.isNotEmpty() == true) matches = matches && tag.date.contains(activeFilters["month"]!!)
+                if (activeFilters["date"]?.isNotEmpty() == true) matches = matches && tag.date == activeFilters["date"]
+                if (activeFilters["barcode"]?.isNotEmpty() == true) matches = matches && tag.barcode.contains(activeFilters["barcode"]!!, true)
+                if (activeFilters["billNo"]?.isNotEmpty() == true) matches = matches && tag.billNo.contains(activeFilters["billNo"]!!, true)
+                if (activeFilters["jappa"]?.isNotEmpty() == true) matches = matches && tag.jappa.contains(activeFilters["jappa"]!!, true)
+                if (activeFilters["millRate"]?.isNotEmpty() == true) matches = matches && tag.millRate.contains(activeFilters["millRate"]!!, true)
+                if (activeFilters["salesman"]?.isNotEmpty() == true) matches = matches && tag.salesman.contains(activeFilters["salesman"]!!, true)
+                matches
+            }
+
+            withContext(Dispatchers.Main) {
+                // Remove all rows except the header
+                val childCount = tableLayout.childCount
+                if (childCount > 1) {
+                    tableLayout.removeViews(1, childCount - 1)
+                }
+
+                totalJappaAmount = 0
+                totalTableRow = null
+
+                for (tag in filteredTags) {
                     if (tag.jappa != "-") {
                         val amountString = tag.jappa.replace(Regex("[^0-9]"), "")
                         totalJappaAmount += (amountString.toIntOrNull() ?: 0)
@@ -171,8 +243,6 @@ class MainActivity : AppCompatActivity() {
                     addRowToTable(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa)
                 }
                 
-                // Continue numbering from where the database left off
-                serialIndex = savedTags.size + 1
                 updateTableTotalRow()
             }
         }
@@ -224,12 +294,6 @@ class MainActivity : AppCompatActivity() {
 
         val jappaRegex = Regex("\\b(E\\d+)\\b", RegexOption.IGNORE_CASE)
         val jappa = jappaRegex.find(rawText)?.groupValues?.get(1) ?: "-"
-
-        if (jappa != "-") {
-            val amountString = jappa.replace(Regex("[^0-9]"), "")
-            val amount = amountString.toIntOrNull() ?: 0
-            totalJappaAmount += amount
-        }
 
         var barcode = barcodeScanResult
         if (barcode == "-" || barcode.isEmpty()) {
@@ -299,11 +363,12 @@ class MainActivity : AppCompatActivity() {
                 jappa = jappa
             )
             database.priceTagDao().insertTag(newTag)
-        }
 
-        // Update UI immediately
-        addRowToTable(currentIndex, salesmanNo, barcode, millRate, billNo, date, jappa)
-        updateTableTotalRow()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(this@MainActivity, "Tag Saved!", Toast.LENGTH_SHORT).show()
+                refreshTable() // Automatically apply active filters and update UI
+            }
+        }
     }
 
     private fun addRowToTable(no: String, salesman: String, barcode: String, millRate: String, billNo: String, date: String, jappa: String) {
