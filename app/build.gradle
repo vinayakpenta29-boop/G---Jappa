@@ -44,4 +44,10 @@ dependencies {
     implementation 'com.google.android.gms:play-services-mlkit-text-recognition:19.0.0'
     implementation 'com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0'
 
+    def room_version = "2.6.1"
+    implementation "androidx.room:room-runtime:$room_version"
+    implementation "androidx.room:room-ktx:$room_version"
+    kapt "androidx.room:room-compiler:$room_version"
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+
 }
