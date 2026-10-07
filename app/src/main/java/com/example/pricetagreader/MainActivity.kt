@@ -8,7 +8,9 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.Spinner
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
@@ -107,44 +109,79 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showFilterDialog() {
-        val view = layoutInflater.inflate(R.layout.dialog_filter, null)
-        val etMonth = view.findViewById<EditText>(R.id.etFilterMonth)
-        val etDate = view.findViewById<EditText>(R.id.etFilterDate)
-        val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
-        val etBillNo = view.findViewById<EditText>(R.id.etFilterBillNo)
-        val etJappa = view.findViewById<EditText>(R.id.etFilterJappa)
-        val etMillRate = view.findViewById<EditText>(R.id.etFilterMillRate)
-        val etSalesman = view.findViewById<EditText>(R.id.etFilterSalesman)
+        // Fetch data in background to find all available Months
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            
+            // Extract unique MM/YYYY combinations from DD/MM/YYYY
+            val availableMonths = allTags.mapNotNull { tag ->
+                val parts = tag.date.split("/")
+                if (parts.size == 3) {
+                    "${parts[1]}/${parts[2]}" // Extracts MM/YYYY
+                } else null
+            }.distinct().sorted()
 
-        // Pre-fill existing filters if any
-        etMonth.setText(activeFilters["month"] ?: "")
-        etDate.setText(activeFilters["date"] ?: "")
-        etBarcode.setText(activeFilters["barcode"] ?: "")
-        etBillNo.setText(activeFilters["billNo"] ?: "")
-        etJappa.setText(activeFilters["jappa"] ?: "")
-        etMillRate.setText(activeFilters["millRate"] ?: "")
-        etSalesman.setText(activeFilters["salesman"] ?: "")
+            val spinnerOptions = mutableListOf("All Months")
+            spinnerOptions.addAll(availableMonths)
 
-        AlertDialog.Builder(this)
-            .setTitle("Filter Data")
-            .setView(view)
-            .setPositiveButton("Apply") { _, _ ->
-                activeFilters["month"] = etMonth.text.toString().trim()
-                activeFilters["date"] = etDate.text.toString().trim()
-                activeFilters["barcode"] = etBarcode.text.toString().trim()
-                activeFilters["billNo"] = etBillNo.text.toString().trim()
-                activeFilters["jappa"] = etJappa.text.toString().trim()
-                activeFilters["millRate"] = etMillRate.text.toString().trim()
-                activeFilters["salesman"] = etSalesman.text.toString().trim()
+            withContext(Dispatchers.Main) {
+                val view = layoutInflater.inflate(R.layout.dialog_filter, null)
+                
+                val spinnerMonth = view.findViewById<Spinner>(R.id.spinnerFilterMonth)
+                val etDate = view.findViewById<EditText>(R.id.etFilterDate)
+                val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
+                val etBillNo = view.findViewById<EditText>(R.id.etFilterBillNo)
+                val etJappa = view.findViewById<EditText>(R.id.etFilterJappa)
+                val etMillRate = view.findViewById<EditText>(R.id.etFilterMillRate)
+                val etSalesman = view.findViewById<EditText>(R.id.etFilterSalesman)
 
-                refreshTable()
+                // Setup Spinner adapter
+                val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, spinnerOptions)
+                spinnerMonth.adapter = adapter
+
+                // Set pre-selected Month if it exists in filters
+                val activeMonth = activeFilters["month"]
+                if (!activeMonth.isNullOrEmpty()) {
+                    val position = spinnerOptions.indexOf(activeMonth)
+                    if (position >= 0) spinnerMonth.setSelection(position)
+                }
+
+                // Pre-fill existing text filters
+                etDate.setText(activeFilters["date"] ?: "")
+                etBarcode.setText(activeFilters["barcode"] ?: "")
+                etBillNo.setText(activeFilters["billNo"] ?: "")
+                etJappa.setText(activeFilters["jappa"] ?: "")
+                etMillRate.setText(activeFilters["millRate"] ?: "")
+                etSalesman.setText(activeFilters["salesman"] ?: "")
+
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Filter Data")
+                    .setView(view)
+                    .setPositiveButton("Apply") { _, _ ->
+                        val selectedMonth = spinnerMonth.selectedItem.toString()
+                        if (selectedMonth == "All Months") {
+                            activeFilters.remove("month")
+                        } else {
+                            activeFilters["month"] = selectedMonth
+                        }
+
+                        activeFilters["date"] = etDate.text.toString().trim()
+                        activeFilters["barcode"] = etBarcode.text.toString().trim()
+                        activeFilters["billNo"] = etBillNo.text.toString().trim()
+                        activeFilters["jappa"] = etJappa.text.toString().trim()
+                        activeFilters["millRate"] = etMillRate.text.toString().trim()
+                        activeFilters["salesman"] = etSalesman.text.toString().trim()
+
+                        refreshTable()
+                    }
+                    .setNeutralButton("Clear Filters") { _, _ ->
+                        activeFilters.clear()
+                        refreshTable()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             }
-            .setNeutralButton("Clear Filters") { _, _ ->
-                activeFilters.clear()
-                refreshTable()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
     }
 
     private fun showPercentageDialog() {
@@ -208,7 +245,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Fetches all data, applies active filters, recalculates totals, and updates UI
     private fun refreshTable() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
@@ -226,7 +262,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
-                // Remove all rows except the header
                 val childCount = tableLayout.childCount
                 if (childCount > 1) {
                     tableLayout.removeViews(1, childCount - 1)
@@ -351,7 +386,6 @@ class MainActivity : AppCompatActivity() {
 
         val currentIndex = (serialIndex++).toString()
         
-        // Save new row to Room Database in the background
         lifecycleScope.launch(Dispatchers.IO) {
             val newTag = PriceTag(
                 no = currentIndex,
@@ -366,7 +400,7 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 Toast.makeText(this@MainActivity, "Tag Saved!", Toast.LENGTH_SHORT).show()
-                refreshTable() // Automatically apply active filters and update UI
+                refreshTable() 
             }
         }
     }
