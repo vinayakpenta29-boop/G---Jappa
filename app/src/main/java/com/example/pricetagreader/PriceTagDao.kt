@@ -13,9 +13,11 @@ interface PriceTagDao {
     @Insert
     suspend fun insertTag(tag: PriceTag)
 
-    // NEW: Function to update an existing row in the database
     @Update
     suspend fun updateTag(tag: PriceTag)
+
+    @Query("DELETE FROM price_tags WHERE id IN (:ids)")
+    suspend fun deleteTagsByIds(ids: List<Int>)
 
     @Query("DELETE FROM price_tags")
     suspend fun deleteAllTags()
