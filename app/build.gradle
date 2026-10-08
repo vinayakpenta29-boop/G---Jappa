@@ -1,7 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'kotlin-kapt' // This line is required for Room to compile
+    id 'kotlin-kapt' 
 }
 
 android {
@@ -14,7 +14,6 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -51,4 +50,7 @@ dependencies {
     implementation "androidx.room:room-ktx:$room_version"
     kapt "androidx.room:room-compiler:$room_version"
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+
+    // Image Zoom Library
+    implementation 'com.github.chrisbanes:PhotoView:2.3.0'
 }
