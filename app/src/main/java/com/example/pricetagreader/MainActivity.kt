@@ -7,11 +7,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
-import android.view.Menu
-import android.view.MenuItem
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
@@ -45,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private var displayedRowIndex = 0 
     
     private lateinit var tableLayout: TableLayout
+    private lateinit var loadingOverlay: FrameLayout
+    private lateinit var fabCamera: ExtendedFloatingActionButton
     
     private var totalJappaAmount = 0
     private var cutoffPercentage = 0.0
@@ -59,12 +61,18 @@ class MainActivity : AppCompatActivity() {
     private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { processImage(it) }
+        uri?.let { 
+            showLoading()
+            processImage(it) 
+        }
     }
 
     private val cameraLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            tempImageUri?.let { processImage(it) }
+            tempImageUri?.let { 
+                showLoading()
+                processImage(it) 
+            }
         }
     }
 
@@ -77,7 +85,8 @@ class MainActivity : AppCompatActivity() {
         
         tableLayout = findViewById(R.id.tableLayout)
         switchCutOff = findViewById(R.id.switchCutOff)
-        val fabCamera = findViewById<ExtendedFloatingActionButton>(R.id.fabCamera)
+        loadingOverlay = findViewById(R.id.loadingOverlay)
+        fabCamera = findViewById(R.id.fabCamera)
 
         fabCamera.setOnClickListener {
             showImageOptions()
@@ -89,6 +98,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         loadSavedData()
+    }
+
+    private fun showLoading() {
+        loadingOverlay.visibility = View.VISIBLE
+        fabCamera.isEnabled = false
+    }
+
+    private fun hideLoading() {
+        loadingOverlay.visibility = View.GONE
+        fabCamera.isEnabled = true
     }
 
     override fun onStart() {
@@ -215,7 +234,7 @@ class MainActivity : AppCompatActivity() {
 
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Authentication Required")
-            .setMessage("Enter password to clear all data.") // Clues removed completely
+            .setMessage("Enter password to clear all data.") 
             .setView(view)
             .setPositiveButton("Clear Data") { _, _ ->
                 val enteredPassword = etPassword.text.toString().trim()
@@ -333,6 +352,14 @@ class MainActivity : AppCompatActivity() {
                     .addOnSuccessListener { visionText ->
                         extractAndAddData(visionText, barcodeValue)
                     }
+                    .addOnFailureListener {
+                        hideLoading()
+                        Toast.makeText(this, "Text Recognition Failed", Toast.LENGTH_SHORT).show()
+                    }
+            }
+            .addOnFailureListener {
+                hideLoading()
+                Toast.makeText(this, "Barcode Scan Failed", Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -416,6 +443,7 @@ class MainActivity : AppCompatActivity() {
             database.priceTagDao().insertTag(newTag)
 
             withContext(Dispatchers.Main) {
+                hideLoading()
                 Toast.makeText(this@MainActivity, "Tag Saved!", Toast.LENGTH_SHORT).show()
                 refreshTable() 
             }
