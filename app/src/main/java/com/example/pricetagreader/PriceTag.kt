@@ -13,5 +13,7 @@ data class PriceTag(
     val billNo: String,
     val date: String,
     val jappa: String,
-    val imagePath: String // NEW: Stores the path to the saved image
+    val imagePath: String,
+    val imageTitle: String = "Unknown", // NEW
+    val imageDate: String = "Unknown"   // NEW
 )
