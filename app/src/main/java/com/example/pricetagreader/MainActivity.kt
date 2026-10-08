@@ -306,7 +306,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // NEW: Updated to show Original Image with Title, Date, and Zooming features
     private fun showOriginalImage(tag: PriceTag) {
         if (tag.imagePath == "-" || tag.imagePath.isEmpty()) {
             Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
@@ -422,7 +421,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // NEW: Function to extract Display Name and Date directly from the media Uri
     private fun getImageMetadata(uri: Uri): Pair<String, String> {
         var title = "Captured Image"
         var date = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())
@@ -447,14 +445,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            // Fails gracefully and falls back to default values
+            
         }
         return Pair(title, date)
     }
 
     private fun processImage(uri: Uri) {
         val localImagePath = saveImageLocally(uri)
-        val metadata = getImageMetadata(uri) // Extracts Name & Date
+        val metadata = getImageMetadata(uri) 
         
         val image = InputImage.fromFilePath(this, uri)
         val barcodeScanner = BarcodeScanning.getClient()
@@ -588,6 +586,9 @@ class MainActivity : AppCompatActivity() {
 
         val dataList = listOf(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa, "IMAGE_ICON")
 
+        // NEW: Check if this specific row is missing any extracted data
+        val hasMissingData = tag.salesman == "-" || tag.barcode == "-" || tag.millRate == "-" || tag.billNo == "-" || tag.date == "-" || tag.jappa == "-"
+
         for (text in dataList) {
             if (text == "IMAGE_ICON") {
                 val imageView = ImageView(this).apply {
@@ -597,7 +598,6 @@ class MainActivity : AppCompatActivity() {
                     layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
                     
                     setOnClickListener { 
-                        // Modified to pass the entire tag object to access the title/date
                         showOriginalImage(tag) 
                     }
                 }
@@ -606,7 +606,14 @@ class MainActivity : AppCompatActivity() {
                 val textView = TextView(this).apply {
                     this.text = text
                     setPadding(16, 24, 16, 24)
-                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
+                    
+                    // Highlights the text in red if data is missing, else standard color
+                    if (hasMissingData) {
+                        setTextColor(android.graphics.Color.parseColor("#D32F2F"))
+                    } else {
+                        setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
+                    }
+                    
                     typeface = Typeface.create("sans-serif", Typeface.NORMAL)
                     layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
                     gravity = Gravity.CENTER 
