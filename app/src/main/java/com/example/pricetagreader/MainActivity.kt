@@ -33,6 +33,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -93,7 +96,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvAppTitle).setOnClickListener {
             val menuView = layoutInflater.inflate(R.layout.dialog_menu, null)
             
-            // Applied RoundedDialogTheme
             val dialog = MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
                 .setTitle("Menu Options")
                 .setView(menuView)
@@ -154,7 +156,6 @@ class MainActivity : AppCompatActivity() {
                 etMillRate.setText(activeFilters["millRate"] ?: "")
                 etSalesman.setText(activeFilters["salesman"] ?: "")
 
-                // Applied RoundedDialogTheme
                 MaterialAlertDialogBuilder(this@MainActivity, R.style.RoundedDialogTheme)
                     .setTitle("Filter Data")
                     .setView(view)
@@ -189,7 +190,6 @@ class MainActivity : AppCompatActivity() {
         val view = layoutInflater.inflate(R.layout.dialog_percentage, null)
         val etPercentage = view.findViewById<EditText>(R.id.etPercentage)
 
-        // Applied RoundedDialogTheme
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Set Cut off Percentage")
             .setView(view)
@@ -210,19 +210,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearAllData() {
-        // Applied RoundedDialogTheme
+        val view = layoutInflater.inflate(R.layout.dialog_password, null)
+        val etPassword = view.findViewById<EditText>(R.id.etPassword)
+
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
-            .setTitle("Clear Data")
-            .setMessage("Are you sure you want to clear all scanned tags? This cannot be undone.")
-            .setPositiveButton("Clear") { _, _ ->
-                lifecycleScope.launch(Dispatchers.IO) {
-                    database.priceTagDao().deleteAllTags()
-                    activeFilters.clear()
-                    
-                    withContext(Dispatchers.Main) {
-                        serialIndex = 1
-                        refreshTable()
+            .setTitle("Authentication Required")
+            .setMessage("Enter the current time in 12-hour format to confirm (e.g. 1152).")
+            .setView(view)
+            .setPositiveButton("Clear Data") { _, _ ->
+                val enteredPassword = etPassword.text.toString().trim()
+                
+                // Calculates the exact time on the phone right now
+                val currentTime4Digit = SimpleDateFormat("hhmm", Locale.getDefault()).format(Date()) // e.g., 0152 for 1:52
+                val currentTime3Digit = SimpleDateFormat("hmm", Locale.getDefault()).format(Date())  // e.g., 152 for 1:52
+
+                if (enteredPassword == currentTime4Digit || enteredPassword == currentTime3Digit) {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        database.priceTagDao().deleteAllTags()
+                        activeFilters.clear()
+                        
+                        withContext(Dispatchers.Main) {
+                            serialIndex = 1
+                            refreshTable()
+                            Toast.makeText(this@MainActivity, "All Data Cleared", Toast.LENGTH_SHORT).show()
+                        }
                     }
+                } else {
+                    Toast.makeText(this, "Incorrect Time Password!", Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -289,7 +303,6 @@ class MainActivity : AppCompatActivity() {
     private fun showImageOptions() {
         val options = arrayOf("Gallery", "Open Camera")
         
-        // Applied RoundedDialogTheme
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Select Image Source")
             .setItems(options) { _, which ->
