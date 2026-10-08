@@ -23,6 +23,7 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import com.github.chrisbanes.photoview.PhotoView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -305,27 +306,30 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showOriginalImage(imagePath: String) {
-        if (imagePath == "-" || imagePath.isEmpty()) {
+    // NEW: Updated to show Original Image with Title, Date, and Zooming features
+    private fun showOriginalImage(tag: PriceTag) {
+        if (tag.imagePath == "-" || tag.imagePath.isEmpty()) {
             Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
             return
         }
         
-        val file = File(imagePath)
+        val file = File(tag.imagePath)
         if (!file.exists()) {
             Toast.makeText(this, "Image file not found", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val imageView = ImageView(this).apply {
-            setImageURI(Uri.fromFile(file))
-            adjustViewBounds = true
-            setPadding(24, 24, 24, 24)
-        }
+        val view = layoutInflater.inflate(R.layout.dialog_image_viewer, null)
+        val tvTitle = view.findViewById<TextView>(R.id.tvImageTitle)
+        val tvDate = view.findViewById<TextView>(R.id.tvImageDate)
+        val photoView = view.findViewById<PhotoView>(R.id.photoView)
+
+        tvTitle.text = tag.imageTitle
+        tvDate.text = "Captured: ${tag.imageDate}"
+        photoView.setImageURI(Uri.fromFile(file))
 
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
-            .setTitle("Original Tag Image")
-            .setView(imageView)
+            .setView(view)
             .setPositiveButton("Close", null)
             .show()
     }
@@ -418,8 +422,40 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // NEW: Function to extract Display Name and Date directly from the media Uri
+    private fun getImageMetadata(uri: Uri): Pair<String, String> {
+        var title = "Captured Image"
+        var date = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())
+
+        try {
+            val cursor = contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        val name = it.getString(nameIndex)
+                        if (!name.isNullOrEmpty()) title = name
+                    }
+
+                    val dateIndex = it.getColumnIndex(android.provider.MediaStore.Images.Media.DATE_TAKEN)
+                    if (dateIndex != -1) {
+                        val timestamp = it.getLong(dateIndex)
+                        if (timestamp > 0) {
+                            date = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(timestamp))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Fails gracefully and falls back to default values
+        }
+        return Pair(title, date)
+    }
+
     private fun processImage(uri: Uri) {
         val localImagePath = saveImageLocally(uri)
+        val metadata = getImageMetadata(uri) // Extracts Name & Date
+        
         val image = InputImage.fromFilePath(this, uri)
         val barcodeScanner = BarcodeScanning.getClient()
         val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -434,7 +470,7 @@ class MainActivity : AppCompatActivity() {
                 
                 textRecognizer.process(image)
                     .addOnSuccessListener { visionText ->
-                        extractAndAddData(visionText, barcodeValue, localImagePath)
+                        extractAndAddData(visionText, barcodeValue, localImagePath, metadata.first, metadata.second)
                     }
                     .addOnFailureListener {
                         hideLoading()
@@ -447,7 +483,7 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    private fun extractAndAddData(visionText: Text, barcodeScanResult: String, localImagePath: String) {
+    private fun extractAndAddData(visionText: Text, barcodeScanResult: String, localImagePath: String, imgTitle: String, imgDate: String) {
         val rawText = visionText.text
         val flatText = rawText.replace("\n", " ").replace(Regex("\\s+"), " ")
         val noSpaceText = rawText.replace(Regex("\\s+"), "") 
@@ -523,7 +559,9 @@ class MainActivity : AppCompatActivity() {
                 billNo = billNo,
                 date = date,
                 jappa = jappa,
-                imagePath = localImagePath 
+                imagePath = localImagePath,
+                imageTitle = imgTitle, 
+                imageDate = imgDate    
             )
             database.priceTagDao().insertTag(newTag)
 
@@ -540,16 +578,14 @@ class MainActivity : AppCompatActivity() {
             val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
             
-            // Updated to trigger the Edit Dialog only on a Long Press
             isClickable = true
             isLongClickable = true
             setOnLongClickListener {
                 showEditDialog(tag)
-                true // Returning true indicates the long press was consumed
+                true 
             }
         }
 
-        // Moved "IMAGE_ICON" to the very end of the list
         val dataList = listOf(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa, "IMAGE_ICON")
 
         for (text in dataList) {
@@ -561,7 +597,8 @@ class MainActivity : AppCompatActivity() {
                     layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
                     
                     setOnClickListener { 
-                        showOriginalImage(tag.imagePath) 
+                        // Modified to pass the entire tag object to access the title/date
+                        showOriginalImage(tag) 
                     }
                 }
                 row.addView(imageView)
@@ -589,7 +626,6 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.tableTotalBg))
         }
 
-        // Adds 5 empty cells (No, Salesman, Barcode, Mill Rate, Bill No)
         for (i in 0..4) {
             val emptyView = TextView(this).apply {
                 layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
@@ -597,7 +633,6 @@ class MainActivity : AppCompatActivity() {
             totalTableRow?.addView(emptyView)
         }
 
-        // Adds the "Total:" label in the 6th column (Date)
         val labelView = TextView(this).apply {
             text = "Total:"
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textPrimary))
@@ -608,7 +643,6 @@ class MainActivity : AppCompatActivity() {
         }
         totalTableRow?.addView(labelView)
 
-        // Adds the total sum in the 7th column (Jappa)
         val totalView = TextView(this).apply {
             var displayText = "$totalJappaAmount"
             
@@ -627,7 +661,6 @@ class MainActivity : AppCompatActivity() {
         }
         totalTableRow?.addView(totalView)
 
-        // Adds 1 empty cell at the end for the 8th column (Image)
         val emptyViewEnd = TextView(this).apply {
             layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
         }
