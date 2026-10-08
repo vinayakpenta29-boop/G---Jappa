@@ -215,14 +215,13 @@ class MainActivity : AppCompatActivity() {
 
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Authentication Required")
-            .setMessage("Enter the current time in 12-hour format to confirm (e.g. 1152).")
+            .setMessage("Enter password to clear all data.") // Clues removed completely
             .setView(view)
             .setPositiveButton("Clear Data") { _, _ ->
                 val enteredPassword = etPassword.text.toString().trim()
                 
-                // Calculates the exact time on the phone right now
-                val currentTime4Digit = SimpleDateFormat("hhmm", Locale.getDefault()).format(Date()) // e.g., 0152 for 1:52
-                val currentTime3Digit = SimpleDateFormat("hmm", Locale.getDefault()).format(Date())  // e.g., 152 for 1:52
+                val currentTime4Digit = SimpleDateFormat("hhmm", Locale.getDefault()).format(Date())
+                val currentTime3Digit = SimpleDateFormat("hmm", Locale.getDefault()).format(Date())
 
                 if (enteredPassword == currentTime4Digit || enteredPassword == currentTime3Digit) {
                     lifecycleScope.launch(Dispatchers.IO) {
@@ -236,7 +235,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } else {
-                    Toast.makeText(this, "Incorrect Time Password!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Incorrect Password!", Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Cancel", null)
