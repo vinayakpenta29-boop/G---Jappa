@@ -261,6 +261,52 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // NEW: Function to display the row editing popup
+    private fun showEditDialog(tag: PriceTag) {
+        val view = layoutInflater.inflate(R.layout.dialog_edit_row, null)
+        
+        val etDate = view.findViewById<EditText>(R.id.etEditDate)
+        val etBarcode = view.findViewById<EditText>(R.id.etEditBarcode)
+        val etBillNo = view.findViewById<EditText>(R.id.etEditBillNo)
+        val etJappa = view.findViewById<EditText>(R.id.etEditJappa)
+        val etMillRate = view.findViewById<EditText>(R.id.etEditMillRate)
+        val etSalesman = view.findViewById<EditText>(R.id.etEditSalesman)
+
+        // Pre-fill the fields, leaving them empty if they currently hold a dash "-"
+        etDate.setText(if (tag.date == "-") "" else tag.date)
+        etBarcode.setText(if (tag.barcode == "-") "" else tag.barcode)
+        etBillNo.setText(if (tag.billNo == "-") "" else tag.billNo)
+        etJappa.setText(if (tag.jappa == "-") "" else tag.jappa)
+        etMillRate.setText(if (tag.millRate == "-") "" else tag.millRate)
+        etSalesman.setText(if (tag.salesman == "-") "" else tag.salesman)
+
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setTitle("Edit Row ${tag.no}")
+            .setView(view)
+            .setPositiveButton("Save Changes") { _, _ ->
+                // Copy the existing tag and replace with new data (adds a dash "-" if left empty)
+                val updatedTag = tag.copy(
+                    date = etDate.text.toString().trim().ifEmpty { "-" },
+                    barcode = etBarcode.text.toString().trim().ifEmpty { "-" },
+                    billNo = etBillNo.text.toString().trim().ifEmpty { "-" },
+                    jappa = etJappa.text.toString().trim().ifEmpty { "-" },
+                    millRate = etMillRate.text.toString().trim().ifEmpty { "-" },
+                    salesman = etSalesman.text.toString().trim().ifEmpty { "-" }
+                )
+                
+                // Save to database and refresh UI
+                lifecycleScope.launch(Dispatchers.IO) {
+                    database.priceTagDao().updateTag(updatedTag)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Row Updated", Toast.LENGTH_SHORT).show()
+                        refreshTable()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun loadSavedData() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         cutoffPercentage = prefs.getFloat(CUTOFF_PERCENT_KEY, 0f).toDouble()
@@ -310,7 +356,8 @@ class MainActivity : AppCompatActivity() {
                         val amountString = tag.jappa.replace(Regex("[^0-9]"), "")
                         totalJappaAmount += (amountString.toIntOrNull() ?: 0)
                     }
-                    addRowToTable(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa)
+                    // We now pass the entire PriceTag object so it can be edited
+                    addRowToTable(tag)
                 }
                 
                 updateTableTotalRow()
@@ -450,13 +497,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun addRowToTable(no: String, salesman: String, barcode: String, millRate: String, billNo: String, date: String, jappa: String) {
+    private fun addRowToTable(tag: PriceTag) {
         val row = TableRow(this).apply {
             val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
+            
+            // NEW: Makes the row clickable
+            isClickable = true
+            setOnClickListener {
+                showEditDialog(tag)
+            }
         }
 
-        val dataList = listOf(no, salesman, barcode, millRate, billNo, date, jappa)
+        val dataList = listOf(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa)
 
         for (text in dataList) {
             val textView = TextView(this).apply {
