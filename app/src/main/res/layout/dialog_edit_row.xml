@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Fill in missing data or update existing values."
+            android:textColor="@color/primaryColor"
+            android:fontFamily="sans-serif-medium"
+            android:textSize="14sp"
+            android:gravity="center_vertical"
+            android:drawableStart="@android:drawable/ic_menu_edit"
+            android:drawablePadding="8dp"
+            android:drawableTint="@color/primaryColor"
+            android:layout_marginBottom="24dp"/>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/RoundedOutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Date (e.g., 04/10/2026)">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etEditDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="text"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/RoundedOutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Barcode">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etEditBarcode" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="text"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/RoundedOutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Bill No.">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etEditBillNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/RoundedOutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Jappa (e.g., E200)">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etEditJappa" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="text"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/RoundedOutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Mill Rate">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etEditMillRate" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/RoundedOutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Salesman No.">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etEditSalesman" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </LinearLayout>
+</ScrollView>
