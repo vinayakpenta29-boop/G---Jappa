@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import com.github.chrisbanes.photoview.PhotoView
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -50,6 +51,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tableLayout: TableLayout
     private lateinit var loadingOverlay: FrameLayout
     private lateinit var fabCamera: ExtendedFloatingActionButton
+    private lateinit var cardFilterHint: MaterialCardView
+    private lateinit var tvFilterHint: TextView
+    private lateinit var tvClearFilterHint: TextView
     
     private var totalJappaAmount = 0
     private var cutoffPercentage = 0.0
@@ -90,6 +94,9 @@ class MainActivity : AppCompatActivity() {
         switchCutOff = findViewById(R.id.switchCutOff)
         loadingOverlay = findViewById(R.id.loadingOverlay)
         fabCamera = findViewById(R.id.fabCamera)
+        cardFilterHint = findViewById(R.id.cardFilterHint)
+        tvFilterHint = findViewById(R.id.tvFilterHint)
+        tvClearFilterHint = findViewById(R.id.tvClearFilterHint)
 
         fabCamera.setOnClickListener {
             showImageOptions()
@@ -98,6 +105,11 @@ class MainActivity : AppCompatActivity() {
         switchCutOff.setOnCheckedChangeListener { _, isChecked ->
             getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(CUTOFF_SWITCH_KEY, isChecked).apply()
             updateTableTotalRow()
+        }
+
+        tvClearFilterHint.setOnClickListener {
+            activeFilters.clear()
+            refreshTable()
         }
 
         loadSavedData()
@@ -130,6 +142,10 @@ class MainActivity : AppCompatActivity() {
             menuView.findViewById<TextView>(R.id.menuPercentage).setOnClickListener {
                 dialog.dismiss()
                 showPercentageDialog()
+            }
+            menuView.findViewById<TextView>(R.id.menuDeleteRows).setOnClickListener {
+                dialog.dismiss()
+                showDeleteRowsDialog()
             }
             menuView.findViewById<TextView>(R.id.menuClear).setOnClickListener {
                 dialog.dismiss()
@@ -264,6 +280,56 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // NEW: Multi-select dialog showing complete columns for row deletion
+    private fun showDeleteRowsDialog() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            
+            withContext(Dispatchers.Main) {
+                if (allTags.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "No data available to delete", Toast.LENGTH_SHORT).show()
+                    return@withContext
+                }
+
+                // Format each row to show complete columns for easy identification
+                val items = allTags.map { tag ->
+                    "No: ${tag.no} | Salesman: ${tag.salesman} | Barcode: ${tag.barcode} | Rate: ${tag.millRate} | Bill: ${tag.billNo} | Date: ${tag.date} | Jappa: ${tag.jappa}"
+                }.toTypedArray()
+
+                val checkedItems = BooleanArray(allTags.size) { false }
+                val selectedIds = mutableListOf<Int>()
+
+                MaterialAlertDialogBuilder(this@MainActivity, R.style.RoundedDialogTheme)
+                    .setTitle("Delete Specific Rows")
+                    .setMultiChoiceItems(items, checkedItems) { _, which, isChecked ->
+                        checkedItems[which] = isChecked
+                    }
+                    .setPositiveButton("Delete Selected") { _, _ ->
+                        selectedIds.clear()
+                        for (i in checkedItems.indices) {
+                            if (checkedItems[i]) {
+                                selectedIds.add(allTags[i].id)
+                            }
+                        }
+
+                        if (selectedIds.isNotEmpty()) {
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                database.priceTagDao().deleteTagsByIds(selectedIds)
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(this@MainActivity, "${selectedIds.size} row(s) deleted", Toast.LENGTH_SHORT).show()
+                                    refreshTable()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(this@MainActivity, "No rows selected", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
+    }
+
     private fun showEditDialog(tag: PriceTag) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_row, null)
         
@@ -368,6 +434,15 @@ class MainActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
+                // NEW: Manage Filter Hint Banner visibility and text
+                if (activeFilters.isNotEmpty()) {
+                    val filterSummary = activeFilters.entries.joinToString(", ") { "${it.key}: ${it.value}" }
+                    tvFilterHint.text = "🔍 Active Filter(s): $filterSummary"
+                    cardFilterHint.visibility = View.VISIBLE
+                } else {
+                    cardFilterHint.visibility = View.GONE
+                }
+
                 val childCount = tableLayout.childCount
                 if (childCount > 1) {
                     tableLayout.removeViews(1, childCount - 1)
@@ -585,8 +660,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         val dataList = listOf(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa, "IMAGE_ICON")
-
-        // NEW: Check if this specific row is missing any extracted data
         val hasMissingData = tag.salesman == "-" || tag.barcode == "-" || tag.millRate == "-" || tag.billNo == "-" || tag.date == "-" || tag.jappa == "-"
 
         for (text in dataList) {
@@ -607,7 +680,6 @@ class MainActivity : AppCompatActivity() {
                     this.text = text
                     setPadding(16, 24, 16, 24)
                     
-                    // Highlights the text in red if data is missing, else standard color
                     if (hasMissingData) {
                         setTextColor(android.graphics.Color.parseColor("#D32F2F"))
                     } else {
