@@ -12,6 +12,7 @@ import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
@@ -33,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -261,7 +263,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // NEW: Function to display the row editing popup
     private fun showEditDialog(tag: PriceTag) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_row, null)
         
@@ -272,7 +273,6 @@ class MainActivity : AppCompatActivity() {
         val etMillRate = view.findViewById<EditText>(R.id.etEditMillRate)
         val etSalesman = view.findViewById<EditText>(R.id.etEditSalesman)
 
-        // Pre-fill the fields, leaving them empty if they currently hold a dash "-"
         etDate.setText(if (tag.date == "-") "" else tag.date)
         etBarcode.setText(if (tag.barcode == "-") "" else tag.barcode)
         etBillNo.setText(if (tag.billNo == "-") "" else tag.billNo)
@@ -284,7 +284,6 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Edit Row ${tag.no}")
             .setView(view)
             .setPositiveButton("Save Changes") { _, _ ->
-                // Copy the existing tag and replace with new data (adds a dash "-" if left empty)
                 val updatedTag = tag.copy(
                     date = etDate.text.toString().trim().ifEmpty { "-" },
                     barcode = etBarcode.text.toString().trim().ifEmpty { "-" },
@@ -294,7 +293,6 @@ class MainActivity : AppCompatActivity() {
                     salesman = etSalesman.text.toString().trim().ifEmpty { "-" }
                 )
                 
-                // Save to database and refresh UI
                 lifecycleScope.launch(Dispatchers.IO) {
                     database.priceTagDao().updateTag(updatedTag)
                     withContext(Dispatchers.Main) {
@@ -304,6 +302,32 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // NEW: Function to open a popup showing the originally scanned image
+    private fun showOriginalImage(imagePath: String) {
+        if (imagePath == "-" || imagePath.isEmpty()) {
+            Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val file = File(imagePath)
+        if (!file.exists()) {
+            Toast.makeText(this, "Image file not found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val imageView = ImageView(this).apply {
+            setImageURI(Uri.fromFile(file))
+            adjustViewBounds = true
+            setPadding(24, 24, 24, 24)
+        }
+
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setTitle("Original Tag Image")
+            .setView(imageView)
+            .setPositiveButton("Close", null)
             .show()
     }
 
@@ -356,7 +380,6 @@ class MainActivity : AppCompatActivity() {
                         val amountString = tag.jappa.replace(Regex("[^0-9]"), "")
                         totalJappaAmount += (amountString.toIntOrNull() ?: 0)
                     }
-                    // We now pass the entire PriceTag object so it can be edited
                     addRowToTable(tag)
                 }
                 
@@ -382,7 +405,23 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // NEW: Function to permanently copy the selected file to the App's internal storage
+    private fun saveImageLocally(uri: Uri): String {
+        return try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val file = File(filesDir, "tag_img_${System.currentTimeMillis()}.jpg")
+            val outputStream = FileOutputStream(file)
+            inputStream?.copyTo(outputStream)
+            inputStream?.close()
+            outputStream.close()
+            file.absolutePath
+        } catch (e: Exception) {
+            "-"
+        }
+    }
+
     private fun processImage(uri: Uri) {
+        val localImagePath = saveImageLocally(uri)
         val image = InputImage.fromFilePath(this, uri)
         val barcodeScanner = BarcodeScanning.getClient()
         val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -397,7 +436,8 @@ class MainActivity : AppCompatActivity() {
                 
                 textRecognizer.process(image)
                     .addOnSuccessListener { visionText ->
-                        extractAndAddData(visionText, barcodeValue)
+                        // Passed the saved image path to the extractor
+                        extractAndAddData(visionText, barcodeValue, localImagePath)
                     }
                     .addOnFailureListener {
                         hideLoading()
@@ -410,7 +450,7 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    private fun extractAndAddData(visionText: Text, barcodeScanResult: String) {
+    private fun extractAndAddData(visionText: Text, barcodeScanResult: String, localImagePath: String) {
         val rawText = visionText.text
         val flatText = rawText.replace("\n", " ").replace(Regex("\\s+"), " ")
         val noSpaceText = rawText.replace(Regex("\\s+"), "") 
@@ -485,7 +525,8 @@ class MainActivity : AppCompatActivity() {
                 millRate = millRate,
                 billNo = billNo,
                 date = date,
-                jappa = jappa
+                jappa = jappa,
+                imagePath = localImagePath // NEW: Save the path in the database
             )
             database.priceTagDao().insertTag(newTag)
 
@@ -502,25 +543,40 @@ class MainActivity : AppCompatActivity() {
             val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
             
-            // NEW: Makes the row clickable
             isClickable = true
             setOnClickListener {
                 showEditDialog(tag)
             }
         }
 
-        val dataList = listOf(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa)
+        // Added the special "IMAGE_ICON" trigger string to generate the button
+        val dataList = listOf(tag.no, "IMAGE_ICON", tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa)
 
         for (text in dataList) {
-            val textView = TextView(this).apply {
-                this.text = text
-                setPadding(16, 24, 16, 24)
-                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
-                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-                layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
-                gravity = Gravity.CENTER 
+            if (text == "IMAGE_ICON") {
+                val imageView = ImageView(this).apply {
+                    setImageResource(android.R.drawable.ic_menu_gallery)
+                    setPadding(16, 24, 16, 24)
+                    setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.primaryColor))
+                    layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+                    
+                    // When clicking the image icon, show the original photo
+                    setOnClickListener { 
+                        showOriginalImage(tag.imagePath) 
+                    }
+                }
+                row.addView(imageView)
+            } else {
+                val textView = TextView(this).apply {
+                    this.text = text
+                    setPadding(16, 24, 16, 24)
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
+                    typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                    layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+                    gravity = Gravity.CENTER 
+                }
+                row.addView(textView)
             }
-            row.addView(textView)
         }
 
         tableLayout.addView(row)
@@ -534,7 +590,8 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.tableTotalBg))
         }
 
-        for (i in 0..4) {
+        // Updated loop to 5 to account for the new Image Column spacing
+        for (i in 0..5) {
             val emptyView = TextView(this).apply {
                 layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
             }
