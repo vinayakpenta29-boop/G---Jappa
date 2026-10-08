@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [PriceTag::class], version = 1, exportSchema = false)
+@Database(entities = [PriceTag::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun priceTagDao(): PriceTagDao
 
@@ -19,7 +19,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "price_tag_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // Safely clears old database to match new structure
+                .build()
                 INSTANCE = instance
                 instance
             }
