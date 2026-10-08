@@ -64,11 +64,11 @@
         </HorizontalScrollView>
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- Scan Tag button centered horizontally -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fabCamera"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="16dp"
         android:layout_marginBottom="24dp"
         android:text="Scan Tag"
         android:textColor="@android:color/white"
@@ -76,7 +76,8 @@
         app:iconTint="@android:color/white"
         app:backgroundTint="@color/primaryColor"
         app:layout_constraintBottom_toTopOf="@+id/bottomPanel"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/bottomPanel"
@@ -105,7 +106,6 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Premium Loading Overlay -->
     <FrameLayout
         android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
