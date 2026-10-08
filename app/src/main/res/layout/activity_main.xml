@@ -52,6 +52,10 @@
                     <TableRow
                         android:background="@color/tableHeaderBg">
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No." android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        
+                        <!-- NEW: Image Column Header -->
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Image" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Salesman" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Barcode" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Mill Rate" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
@@ -64,7 +68,6 @@
         </HorizontalScrollView>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Scan Tag button centered horizontally -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fabCamera"
         android:layout_width="wrap_content"
