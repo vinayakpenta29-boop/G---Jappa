@@ -52,16 +52,14 @@
                     <TableRow
                         android:background="@color/tableHeaderBg">
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No." android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
-                        
-                        <!-- NEW: Image Column Header -->
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Image" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
-                        
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Salesman" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Barcode" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Mill Rate" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bill No." android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Date" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Jappa" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
+                        <!-- Image Column Header Moved to the End -->
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Image" android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium" android:padding="16dp" android:gravity="center"/>
                     </TableRow>
                 </TableLayout>
             </ScrollView>
