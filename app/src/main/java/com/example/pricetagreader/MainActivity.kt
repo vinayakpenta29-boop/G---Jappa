@@ -305,7 +305,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // NEW: Function to open a popup showing the originally scanned image
     private fun showOriginalImage(imagePath: String) {
         if (imagePath == "-" || imagePath.isEmpty()) {
             Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
@@ -405,7 +404,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // NEW: Function to permanently copy the selected file to the App's internal storage
     private fun saveImageLocally(uri: Uri): String {
         return try {
             val inputStream = contentResolver.openInputStream(uri)
@@ -436,7 +434,6 @@ class MainActivity : AppCompatActivity() {
                 
                 textRecognizer.process(image)
                     .addOnSuccessListener { visionText ->
-                        // Passed the saved image path to the extractor
                         extractAndAddData(visionText, barcodeValue, localImagePath)
                     }
                     .addOnFailureListener {
@@ -526,7 +523,7 @@ class MainActivity : AppCompatActivity() {
                 billNo = billNo,
                 date = date,
                 jappa = jappa,
-                imagePath = localImagePath // NEW: Save the path in the database
+                imagePath = localImagePath 
             )
             database.priceTagDao().insertTag(newTag)
 
@@ -543,14 +540,17 @@ class MainActivity : AppCompatActivity() {
             val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
             
+            // Updated to trigger the Edit Dialog only on a Long Press
             isClickable = true
-            setOnClickListener {
+            isLongClickable = true
+            setOnLongClickListener {
                 showEditDialog(tag)
+                true // Returning true indicates the long press was consumed
             }
         }
 
-        // Added the special "IMAGE_ICON" trigger string to generate the button
-        val dataList = listOf(tag.no, "IMAGE_ICON", tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa)
+        // Moved "IMAGE_ICON" to the very end of the list
+        val dataList = listOf(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa, "IMAGE_ICON")
 
         for (text in dataList) {
             if (text == "IMAGE_ICON") {
@@ -560,7 +560,6 @@ class MainActivity : AppCompatActivity() {
                     setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.primaryColor))
                     layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
                     
-                    // When clicking the image icon, show the original photo
                     setOnClickListener { 
                         showOriginalImage(tag.imagePath) 
                     }
@@ -590,14 +589,15 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.tableTotalBg))
         }
 
-        // Updated loop to 5 to account for the new Image Column spacing
-        for (i in 0..5) {
+        // Adds 5 empty cells (No, Salesman, Barcode, Mill Rate, Bill No)
+        for (i in 0..4) {
             val emptyView = TextView(this).apply {
                 layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
             }
             totalTableRow?.addView(emptyView)
         }
 
+        // Adds the "Total:" label in the 6th column (Date)
         val labelView = TextView(this).apply {
             text = "Total:"
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textPrimary))
@@ -608,6 +608,7 @@ class MainActivity : AppCompatActivity() {
         }
         totalTableRow?.addView(labelView)
 
+        // Adds the total sum in the 7th column (Jappa)
         val totalView = TextView(this).apply {
             var displayText = "$totalJappaAmount"
             
@@ -625,6 +626,12 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER 
         }
         totalTableRow?.addView(totalView)
+
+        // Adds 1 empty cell at the end for the 8th column (Image)
+        val emptyViewEnd = TextView(this).apply {
+            layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+        }
+        totalTableRow?.addView(emptyViewEnd)
 
         tableLayout.addView(totalTableRow)
     }
