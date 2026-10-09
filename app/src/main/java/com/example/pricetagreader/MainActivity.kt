@@ -1,7 +1,9 @@
 package com.example.pricetagreader
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.net.Uri
@@ -85,6 +87,17 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             hideLoading()
+        }
+    }
+
+    // NEW: Runtime camera permission launcher
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(this, "Camera permission is required to scan tags", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -476,12 +489,21 @@ class MainActivity : AppCompatActivity() {
                 if (which == 0) {
                     galleryLauncher.launch("image/*")
                 } else {
-                    val tempFile = File(cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
-                    tempImageUri = FileProvider.getUriForFile(this, "${packageName}.provider", tempFile)
-                    cameraLauncher.launch(tempImageUri)
+                    // Check runtime permission before launching camera
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        launchCamera()
+                    } else {
+                        requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
                 }
             }
             .show()
+    }
+
+    private fun launchCamera() {
+        val tempFile = File(cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
+        tempImageUri = FileProvider.getUriForFile(this, "${packageName}.provider", tempFile)
+        cameraLauncher.launch(tempImageUri)
     }
 
     private fun saveImageLocally(uri: Uri): String {
