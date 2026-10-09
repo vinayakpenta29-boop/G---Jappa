@@ -1,11 +1,14 @@
 package com.example.pricetagreader
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.text.InputType
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.widget.ArrayAdapter
@@ -70,16 +73,18 @@ class MainActivity : AppCompatActivity() {
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { 
             showLoading()
-            processImage(it) 
+            processImage(it, isFromCamera = false) 
         }
     }
 
     private val cameraLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            tempImageUri?.let { 
+            tempImageUri?.let { uri ->
                 showLoading()
-                processImage(it) 
+                processImage(uri, isFromCamera = true) 
             }
+        } else {
+            hideLoading()
         }
     }
 
@@ -280,7 +285,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // NEW: Multi-select dialog showing complete columns for row deletion
     private fun showDeleteRowsDialog() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
@@ -291,7 +295,6 @@ class MainActivity : AppCompatActivity() {
                     return@withContext
                 }
 
-                // Format each row to show complete columns for easy identification
                 val items = allTags.map { tag ->
                     "No: ${tag.no} | Salesman: ${tag.salesman} | Barcode: ${tag.barcode} | Rate: ${tag.millRate} | Bill: ${tag.billNo} | Date: ${tag.date} | Jappa: ${tag.jappa}"
                 }.toTypedArray()
@@ -434,7 +437,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
-                // NEW: Manage Filter Hint Banner visibility and text
                 if (activeFilters.isNotEmpty()) {
                     val filterSummary = activeFilters.entries.joinToString(", ") { "${it.key}: ${it.value}" }
                     tvFilterHint.text = "🔍 Active Filter(s): $filterSummary"
@@ -496,6 +498,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun saveImageToPublicGallery(sourceFile: File): String {
+        return try {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "PriceTag_${System.currentTimeMillis()}.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PriceTagReader")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            uri?.let {
+                contentResolver.openOutputStream(it)?.use { outputStream ->
+                    sourceFile.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.clear()
+                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    contentResolver.update(uri, values, null, null)
+                }
+                it.toString()
+            } ?: sourceFile.absolutePath
+        } catch (e: Exception) {
+            sourceFile.absolutePath
+        }
+    }
+
     private fun getImageMetadata(uri: Uri): Pair<String, String> {
         var title = "Captured Image"
         var date = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())
@@ -510,7 +542,7 @@ class MainActivity : AppCompatActivity() {
                         if (!name.isNullOrEmpty()) title = name
                     }
 
-                    val dateIndex = it.getColumnIndex(android.provider.MediaStore.Images.Media.DATE_TAKEN)
+                    val dateIndex = it.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)
                     if (dateIndex != -1) {
                         val timestamp = it.getLong(dateIndex)
                         if (timestamp > 0) {
@@ -525,8 +557,16 @@ class MainActivity : AppCompatActivity() {
         return Pair(title, date)
     }
 
-    private fun processImage(uri: Uri) {
+    private fun processImage(uri: Uri, isFromCamera: Boolean) {
         val localImagePath = saveImageLocally(uri)
+        
+        if (isFromCamera) {
+            val file = File(localImagePath)
+            if (file.exists()) {
+                saveImageToPublicGallery(file)
+            }
+        }
+
         val metadata = getImageMetadata(uri) 
         
         val image = InputImage.fromFilePath(this, uri)
