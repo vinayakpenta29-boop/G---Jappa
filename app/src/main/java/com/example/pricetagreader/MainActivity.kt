@@ -1,702 +1,812 @@
-package com.productapp;
+package com.example.pricetagreader
 
-import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
-import android.os.Bundle;
-import android.view.Gravity;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.View;
-import android.widget.*;
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-import com.google.android.material.card.MaterialCardView;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Locale;
+import android.Manifest
+import android.content.ContentValues
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Rect
+import android.graphics.Typeface
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
+import android.view.Gravity
+import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.TableLayout
+import android.widget.TableRow
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
+import com.github.chrisbanes.photoview.PhotoView
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-public class MainActivity extends AppCompatActivity {
+class MainActivity : AppCompatActivity() {
 
-    private LinearLayout layoutSavedBoxes, layoutOrderInputs;
-    private Spinner spinnerHomeProduct;
-    private TextView tvSummaryTotalQty, tvSummaryTotalAmount;
+    private var tempImageUri: Uri? = null
+    private var serialIndex = 1
     
-    private ArrayList<JSONObject> productList = new ArrayList<>();
-    private HashMap<String, JSONObject> ratesMap = new HashMap<>();
-    private ArrayList<JSONObject> orderList = new ArrayList<>();
+    private var displayedRowIndex = 0 
+    
+    private lateinit var tableLayout: TableLayout
+    private lateinit var loadingOverlay: FrameLayout
+    private lateinit var fabCamera: ExtendedFloatingActionButton
+    private lateinit var cardFilterHint: MaterialCardView
+    private lateinit var tvFilterHint: TextView
+    private lateinit var tvClearFilterHint: TextView
+    
+    private var totalJappaAmount = 0
+    private var cutoffPercentage = 0.0
+    private lateinit var switchCutOff: SwitchCompat
+    private var totalTableRow: TableRow? = null
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+    private var activeFilters = mutableMapOf<String, String>()
+    private lateinit var database: AppDatabase
 
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+    private val PREFS_NAME = "PriceTagSettings"
+    private val CUTOFF_PERCENT_KEY = "CutoffPercent"
+    private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
 
-        layoutSavedBoxes = findViewById(R.id.layoutSavedBoxes);
-        layoutOrderInputs = findViewById(R.id.layoutOrderInputs);
-        spinnerHomeProduct = findViewById(R.id.spinnerHomeProduct);
-        
-        tvSummaryTotalQty = findViewById(R.id.tvSummaryTotalQty);
-        tvSummaryTotalAmount = findViewById(R.id.tvSummaryTotalAmount);
+    private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { 
+            showLoading()
+            processImage(it, isFromCamera = false) 
+        }
+    }
 
-        findViewById(R.id.btnSaveOrder).setOnClickListener(v -> saveOrderData());
-
-        spinnerHomeProduct.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                renderOrderInputs();
+    private val cameraLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) {
+            tempImageUri?.let { uri ->
+                showLoading()
+                processImage(uri, isFromCamera = true) 
             }
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        loadDataFromStorage();
-        refreshSpinners();
-        renderSavedOrders();
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
-        if (id == R.id.menu_product) {
-            showProductConfigDialog();
-            return true;
-        } else if (id == R.id.menu_rates) {
-            showProductRatesDialog();
-            return true;
-        } else if (id == R.id.menu_history) {
-            showHistoryDialog();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    private void showProductConfigDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View view = getLayoutInflater().inflate(R.layout.dialog_product_config, null);
-        builder.setView(view);
-        AlertDialog dialog = builder.create();
-        if(dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-        
-        EditText etProductName = view.findViewById(R.id.etProductName);
-        LinearLayout layoutSizeRows = view.findViewById(R.id.layoutSizeRows);
-        EditText etBigFrom = view.findViewById(R.id.etBigFrom);
-        EditText etBigTo = view.findViewById(R.id.etBigTo);
-        EditText etSmallFrom = view.findViewById(R.id.etSmallFrom);
-        EditText etSmallTo = view.findViewById(R.id.etSmallTo);
-        ArrayList<EditText> dialogSizeList = new ArrayList<>();
-
-        Runnable addSizeRow = () -> {
-            EditText et = new EditText(this);
-            int heightPx = (int) (48 * getResources().getDisplayMetrics().density);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, heightPx);
-            lp.setMargins(0, 0, 0, 8);
-            et.setLayoutParams(lp);
-            et.setHint("Enter Size (e.g. S, M, L)");
-            et.setPadding(12, 0, 12, 0);
-            et.setBackgroundResource(R.drawable.bg_rounded_edittext);
-            layoutSizeRows.addView(et);
-            dialogSizeList.add(et);
-        };
-
-        addSizeRow.run();
-        view.findViewById(R.id.btnAddSize).setOnClickListener(v -> addSizeRow.run());
-
-        view.findViewById(R.id.btnSaveProduct).setOnClickListener(v -> {
-            try {
-                String name = etProductName.getText().toString().trim();
-                JSONArray sizesArr = new JSONArray();
-                for(EditText et : dialogSizeList) {
-                    String s = et.getText().toString().trim();
-                    if(!s.isEmpty()) sizesArr.put(s);
-                }
-                if(name.isEmpty() || sizesArr.length() == 0) {
-                    Toast.makeText(this, "Enter name and sizes", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                JSONObject obj = new JSONObject();
-                obj.put("name", name);
-                obj.put("sizes", sizesArr);
-                obj.put("bigFrom", etBigFrom.getText().toString().trim());
-                obj.put("bigTo", etBigTo.getText().toString().trim());
-                obj.put("smallFrom", etSmallFrom.getText().toString().trim());
-                obj.put("smallTo", etSmallTo.getText().toString().trim());
-
-                productList.add(obj);
-                saveDataToStorage();
-                refreshSpinners();
-                Toast.makeText(this, "Product Saved Successfully", Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
-            } catch(Exception e) { e.printStackTrace(); }
-        });
-
-        dialog.show();
-    }
-
-    private void showProductRatesDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View view = getLayoutInflater().inflate(R.layout.dialog_product_rates, null);
-        builder.setView(view);
-        AlertDialog dialog = builder.create();
-        if(dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-
-        Spinner spinnerRateProduct = view.findViewById(R.id.spinnerRateProduct);
-        TextView tvBigLabel = view.findViewById(R.id.tvBigRateLabel);
-        TextView tvSmallLabel = view.findViewById(R.id.tvSmallRateLabel);
-        EditText etBigRate = view.findViewById(R.id.etBigRate);
-        EditText etSmallRate = view.findViewById(R.id.etSmallRate);
-
-        ArrayList<String> names = new ArrayList<>();
-        names.add("-- Choose Product --");
-        for(JSONObject p : productList) {
-            try { names.add(p.getString("name")); } catch(Exception e) {}
-        }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, names);
-        spinnerRateProduct.setAdapter(adapter);
-
-        spinnerRateProduct.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
-                if(position <= 0 || position > productList.size()) return;
-                try {
-                    JSONObject p = productList.get(position - 1);
-                    tvBigLabel.setText("Big Product Rates (Range: " + p.optString("bigFrom") + " to " + p.optString("bigTo") + ")");
-                    tvSmallLabel.setText("Small Product Rates (Range: " + p.optString("smallFrom") + " to " + p.optString("smallTo") + ")");
-                    
-                    String name = p.getString("name");
-                    if(ratesMap.containsKey(name)) {
-                        JSONObject r = ratesMap.get(name);
-                        etBigRate.setText(r.optString("big", ""));
-                        etSmallRate.setText(r.optString("small", ""));
-                    } else {
-                        etBigRate.setText("");
-                        etSmallRate.setText("");
-                    }
-                } catch(Exception e) { e.printStackTrace(); }
-            }
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        view.findViewById(R.id.btnSaveRates).setOnClickListener(v -> {
-            int pos = spinnerRateProduct.getSelectedItemPosition();
-            if(pos <= 0) {
-                Toast.makeText(this, "Select a product first", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            try {
-                JSONObject p = productList.get(pos - 1);
-                JSONObject r = new JSONObject();
-                r.put("big", etBigRate.getText().toString().trim());
-                r.put("small", etSmallRate.getText().toString().trim());
-                ratesMap.put(p.getString("name"), r);
-                saveDataToStorage();
-                Toast.makeText(this, "Rates Saved Successfully", Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
-            } catch(Exception e) { e.printStackTrace(); }
-        });
-
-        dialog.show();
-    }
-
-    private void showHistoryDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setPadding(16, 16, 16, 16);
-        LinearLayout layoutHistoryBoxes = new LinearLayout(this);
-        layoutHistoryBoxes.setOrientation(LinearLayout.VERTICAL);
-        scrollView.addView(layoutHistoryBoxes);
-
-        float density = getResources().getDisplayMetrics().density;
-        float cardRadiusPx = 24f * density;
-        float tableRadiusPx = 18f * density;
-
-        for(int index = 0; index < orderList.size(); index++) {
-            try {
-                JSONObject order = orderList.get(index);
-                boolean isPaid = order.optBoolean("isPaid", false);
-                if(!isPaid) continue;
-
-                String pName = order.getString("productName");
-                String date = order.optString("date", "");
-                String paidDate = order.optString("paidDate", "");
-                JSONArray items = order.getJSONArray("items");
-
-                // Prominently rounded outer card
-                MaterialCardView card = new MaterialCardView(this);
-                card.setRadius(cardRadiusPx);
-                card.setCardElevation(4f * density);
-                card.setStrokeWidth((int) (1 * density));
-                card.setStrokeColor(Color.parseColor("#E2E8F0"));
-                card.setCardBackgroundColor(Color.WHITE);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                lp.setMargins(0, 0, 0, (int) (16 * density));
-                card.setLayoutParams(lp);
-
-                LinearLayout cardInner = new LinearLayout(this);
-                cardInner.setOrientation(LinearLayout.VERTICAL);
-                int padPx = (int) (18 * density);
-                cardInner.setPadding(padPx, padPx, padPx, padPx);
-
-                TextView tvHeading = new TextView(this);
-                tvHeading.setText(pName);
-                tvHeading.setTextSize(16);
-                tvHeading.setTypeface(null, android.graphics.Typeface.BOLD);
-                tvHeading.setTextColor(Color.parseColor("#059669"));
-                tvHeading.setPadding(0, 0, 0, 2);
-                cardInner.addView(tvHeading);
-
-                TextView tvDates = new TextView(this);
-                tvDates.setText("Created: " + date + " | Paid: " + paidDate);
-                tvDates.setTextSize(11);
-                tvDates.setTextColor(Color.parseColor("#64748B"));
-                tvDates.setPadding(0, 0, 0, (int) (12 * density));
-                cardInner.addView(tvDates);
-
-                // Prominently rounded table container
-                LinearLayout tableContainer = new LinearLayout(this);
-                tableContainer.setOrientation(LinearLayout.VERTICAL);
-                GradientDrawable containerBg = new GradientDrawable();
-                containerBg.setShape(GradientDrawable.RECTANGLE);
-                containerBg.setCornerRadius(tableRadiusPx);
-                containerBg.setColor(Color.WHITE);
-                containerBg.setStroke((int) (1 * density), Color.parseColor("#CBD5E1"));
-                tableContainer.setBackground(containerBg);
-                tableContainer.setClipToOutline(true);
-
-                TableLayout table = new TableLayout(this);
-                table.setLayoutParams(new TableLayout.LayoutParams(TableLayout.LayoutParams.MATCH_PARENT, TableLayout.LayoutParams.WRAP_CONTENT));
-                table.setStretchAllColumns(true);
-
-                // Header Row
-                TableRow headerRow = new TableRow(this);
-                headerRow.setBackgroundColor(Color.parseColor("#E0F2FE"));
-                headerRow.setPadding(0, (int) (12 * density), 0, (int) (12 * density));
-                headerRow.addView(makeTableCell("Size", true, false));
-                headerRow.addView(makeTableCell("Type", true, false));
-                headerRow.addView(makeTableCell("Qty", true, false));
-                headerRow.addView(makeTableCell("Amount", true, false));
-                table.addView(headerRow);
-
-                int totalQty = 0;
-                double totalAmount = 0;
-
-                for(int i = 0; i < items.length(); i++) {
-                    JSONObject item = items.getJSONObject(i);
-                    String size = item.getString("size");
-                    String type = item.getString("type");
-                    int qty = item.getInt("qty");
-                    double rate = item.getDouble("rate");
-                    double amount = qty * rate;
-
-                    totalQty += qty;
-                    totalAmount += amount;
-
-                    TableRow row = new TableRow(this);
-                    row.setBackgroundColor(i % 2 == 0 ? Color.parseColor("#FFFFFF") : Color.parseColor("#F8FAFC"));
-                    row.setPadding(0, (int) (10 * density), 0, (int) (10 * density));
-                    
-                    row.addView(makeTableCell(size, false, false));
-                    row.addView(makeTableCell(type, false, false));
-                    row.addView(makeTableCell(String.valueOf(qty), false, false));
-                    row.addView(makeTableCell(String.format(Locale.getDefault(), "%.1f", amount), false, false));
-                    table.addView(row);
-                }
-
-                // Total Footer Row (Light Green Background)
-                TableRow totalRow = new TableRow(this);
-                totalRow.setBackgroundColor(Color.parseColor("#DCFCE7"));
-                totalRow.setPadding(0, (int) (12 * density), 0, (int) (12 * density));
-                totalRow.addView(makeTableCell("Total", false, true));
-                totalRow.addView(makeTableCell("", false, true));
-                totalRow.addView(makeTableCell(String.valueOf(totalQty), false, true));
-                totalRow.addView(makeTableCell(String.format(Locale.getDefault(), "%.1f", totalAmount), false, true));
-                table.addView(totalRow);
-
-                tableContainer.addView(table);
-                cardInner.addView(tableContainer);
-                card.addView(cardInner);
-                layoutHistoryBoxes.addView(card);
-            } catch(Exception e) { e.printStackTrace(); }
-        }
-
-        builder.setTitle("Paid Orders History");
-        builder.setView(scrollView);
-        builder.setPositiveButton("Close", (dialog, which) -> dialog.dismiss());
-        AlertDialog dialog = builder.create();
-        if(dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-        dialog.show();
-    }
-
-    private void refreshSpinners() {
-        ArrayList<String> names = new ArrayList<>();
-        names.add("-- Choose Product --");
-        for(JSONObject p : productList) {
-            try { names.add(p.getString("name")); } catch(Exception e) {}
-        }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, names);
-        spinnerHomeProduct.setAdapter(adapter);
-    }
-
-    private void renderOrderInputs() {
-        layoutOrderInputs.removeAllViews();
-        int pPos = spinnerHomeProduct.getSelectedItemPosition();
-        if(pPos <= 0) return;
-
-        try {
-            JSONObject p = productList.get(pPos - 1);
-            JSONArray sizes = p.getJSONArray("sizes");
-            String bigFrom = p.optString("bigFrom", "");
-            String bigTo = p.optString("bigTo", "");
-            String smallFrom = p.optString("smallFrom", "");
-            String smallTo = p.optString("smallTo", "");
-
-            JSONObject rates = ratesMap.get(p.getString("name"));
-            double bigRate = 0, smallRate = 0;
-            if(rates != null) {
-                String bStr = rates.optString("big", "0");
-                String sStr = rates.optString("small", "0");
-                bigRate = bStr.isEmpty() ? 0 : Double.parseDouble(bStr);
-                smallRate = sStr.isEmpty() ? 0 : Double.parseDouble(sStr);
-            }
-
-            for(int i = 0; i < sizes.length(); i++) {
-                String size = sizes.getString(i);
-                String type = getSizeType(size, bigFrom, bigTo, smallFrom, smallTo);
-                double rate = type.equals("Big") ? bigRate : smallRate;
-
-                LinearLayout row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setPadding(0, 6, 0, 6);
-                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-
-                TextView tv = new TextView(this);
-                tv.setText("Size: " + size + " (" + type + ") - Rate: " + rate);
-                tv.setTextColor(Color.parseColor("#334155"));
-                tv.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-                EditText et = new EditText(this);
-                et.setHint("Qty");
-                et.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-                et.setPadding(12, 10, 12, 10);
-                et.setBackgroundResource(R.drawable.bg_rounded_edittext);
-                et.setTag(size + "|" + type + "|" + rate);
-                
-                int heightPx = (int) (48 * getResources().getDisplayMetrics().density);
-                et.setLayoutParams(new LinearLayout.LayoutParams(220, heightPx));
-
-                row.addView(tv);
-                row.addView(et);
-                layoutOrderInputs.addView(row);
-            }
-        } catch(Exception e) { e.printStackTrace(); }
-    }
-
-    private String getSizeType(String size, String bigFrom, String bigTo, String smallFrom, String smallTo) {
-        try {
-            double sVal = Double.parseDouble(size);
-            double bFrom = bigFrom.isEmpty() ? 0 : Double.parseDouble(bigFrom);
-            double bTo = bigTo.isEmpty() ? 0 : Double.parseDouble(bigTo);
-            if(!bigFrom.isEmpty() && !bigTo.isEmpty() && sVal >= bFrom && sVal <= bTo) return "Big";
-        } catch(Exception e) {}
-        try {
-            double sVal = Double.parseDouble(size);
-            double sFrom = smallFrom.isEmpty() ? 0 : Double.parseDouble(smallFrom);
-            double sTo = smallTo.isEmpty() ? 0 : Double.parseDouble(smallTo);
-            if(!smallFrom.isEmpty() && !smallTo.isEmpty() && sVal >= sFrom && sVal <= sTo) return "Small";
-        } catch(Exception e) {}
-        return "Big";
-    }
-
-    private void saveOrderData() {
-        int pPos = spinnerHomeProduct.getSelectedItemPosition();
-        if(pPos <= 0) {
-            Toast.makeText(this, "Select a product first", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        try {
-            JSONObject p = productList.get(pPos - 1);
-            String pName = p.getString("name");
-
-            JSONArray items = new JSONArray();
-            for(int i = 0; i < layoutOrderInputs.getChildCount(); i++) {
-                LinearLayout row = (LinearLayout) layoutOrderInputs.getChildAt(i);
-                EditText et = (EditText) row.getChildAt(1);
-                String qStr = et.getText().toString().trim();
-                int qty = qStr.isEmpty() ? 0 : Integer.parseInt(qStr);
-                
-                if(qty > 0) {
-                    String tag = et.getTag().toString();
-                    String[] parts = tag.split("\\|");
-                    String size = parts[0];
-                    String type = parts[1];
-                    double rate = Double.parseDouble(parts[2]);
-
-                    JSONObject item = new JSONObject();
-                    item.put("size", size);
-                    item.put("type", type);
-                    item.put("qty", qty);
-                    item.put("rate", rate);
-                    items.put(item);
-                }
-            }
-
-            if(items.length() == 0) {
-                Toast.makeText(this, "Enter quantity for at least one size", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            String currentDate = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date());
-
-            JSONObject order = new JSONObject();
-            order.put("productName", pName);
-            order.put("items", items);
-            order.put("date", currentDate);
-            order.put("isPaid", false);
-            order.put("paidDate", "");
-            orderList.add(order);
-            saveDataToStorage();
-
-            Toast.makeText(this, "Order Box Created!", Toast.LENGTH_SHORT).show();
-            spinnerHomeProduct.setSelection(0);
-            layoutOrderInputs.removeAllViews();
-            renderSavedOrders();
-        } catch(Exception e) { e.printStackTrace(); }
-    }
-
-    private void renderSavedOrders() {
-        layoutSavedBoxes.removeAllViews();
-        
-        int grandTotalQty = 0;
-        double grandTotalAmount = 0.0;
-
-        float density = getResources().getDisplayMetrics().density;
-        float cardRadiusPx = 24f * density;
-        float tableRadiusPx = 18f * density;
-
-        for(int index = 0; index < orderList.size(); index++) {
-            final int oIndex = index;
-            try {
-                JSONObject order = orderList.get(oIndex);
-                boolean isPaid = order.optBoolean("isPaid", false);
-                if(isPaid) continue;
-
-                String pName = order.getString("productName");
-                String date = order.optString("date", "");
-                JSONArray items = order.getJSONArray("items");
-
-                // Prominently rounded outer card
-                MaterialCardView card = new MaterialCardView(this);
-                card.setRadius(cardRadiusPx);
-                card.setCardElevation(4f * density);
-                card.setStrokeWidth((int) (1 * density));
-                card.setStrokeColor(Color.parseColor("#E2E8F0"));
-                card.setCardBackgroundColor(Color.WHITE);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                lp.setMargins(0, 0, 0, (int) (16 * density));
-                card.setLayoutParams(lp);
-
-                LinearLayout cardInner = new LinearLayout(this);
-                cardInner.setOrientation(LinearLayout.VERTICAL);
-                int padPx = (int) (18 * density);
-                cardInner.setPadding(padPx, padPx, padPx, padPx);
-
-                LinearLayout headerLayout = new LinearLayout(this);
-                headerLayout.setOrientation(LinearLayout.HORIZONTAL);
-                headerLayout.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-
-                TextView tvHeading = new TextView(this);
-                tvHeading.setText(pName);
-                tvHeading.setTextSize(16);
-                tvHeading.setTypeface(null, android.graphics.Typeface.BOLD);
-                tvHeading.setTextColor(Color.parseColor("#4F46E5"));
-                tvHeading.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                headerLayout.addView(tvHeading);
-
-                TextView tvDate = new TextView(this);
-                tvDate.setText("Created: " + date);
-                tvDate.setTextSize(11);
-                tvDate.setTextColor(Color.parseColor("#64748B"));
-                headerLayout.addView(tvDate);
-                cardInner.addView(headerLayout);
-
-                // Prominently rounded table container
-                LinearLayout tableContainer = new LinearLayout(this);
-                tableContainer.setOrientation(LinearLayout.VERTICAL);
-                GradientDrawable containerBg = new GradientDrawable();
-                containerBg.setShape(GradientDrawable.RECTANGLE);
-                containerBg.setCornerRadius(tableRadiusPx);
-                containerBg.setColor(Color.WHITE);
-                containerBg.setStroke((int) (1 * density), Color.parseColor("#CBD5E1"));
-                tableContainer.setBackground(containerBg);
-                tableContainer.setClipToOutline(true);
-
-                // Table Layout
-                TableLayout table = new TableLayout(this);
-                table.setLayoutParams(new TableLayout.LayoutParams(TableLayout.LayoutParams.MATCH_PARENT, TableLayout.LayoutParams.WRAP_CONTENT));
-                table.setStretchAllColumns(true);
-
-                // Header Row
-                TableRow headerRow = new TableRow(this);
-                headerRow.setBackgroundColor(Color.parseColor("#E0F2FE"));
-                headerRow.setPadding(0, (int) (12 * density), 0, (int) (12 * density));
-                headerRow.addView(makeTableCell("Size", true, false));
-                headerRow.addView(makeTableCell("Type", true, false));
-                headerRow.addView(makeTableCell("Qty", true, false));
-                headerRow.addView(makeTableCell("Amount", true, false));
-                table.addView(headerRow);
-
-                int totalQty = 0;
-                double totalAmount = 0;
-
-                for(int i = 0; i < items.length(); i++) {
-                    JSONObject item = items.getJSONObject(i);
-                    String size = item.getString("size");
-                    String type = item.getString("type");
-                    int qty = item.getInt("qty");
-                    double rate = item.getDouble("rate");
-                    double amount = qty * rate;
-
-                    totalQty += qty;
-                    totalAmount += amount;
-
-                    TableRow row = new TableRow(this);
-                    row.setBackgroundColor(i % 2 == 0 ? Color.parseColor("#FFFFFF") : Color.parseColor("#F8FAFC"));
-                    row.setPadding(0, (int) (10 * density), 0, (int) (10 * density));
-                    
-                    row.addView(makeTableCell(size, false, false));
-                    row.addView(makeTableCell(type, false, false));
-                    row.addView(makeTableCell(String.valueOf(qty), false, false));
-                    row.addView(makeTableCell(String.format(Locale.getDefault(), "%.1f", amount), false, false));
-                    table.addView(row);
-                }
-
-                grandTotalQty += totalQty;
-                grandTotalAmount += totalAmount;
-
-                // Total Footer Row (Light Green Background, column-aligned)
-                TableRow totalRow = new TableRow(this);
-                totalRow.setBackgroundColor(Color.parseColor("#DCFCE7"));
-                totalRow.setPadding(0, (int) (12 * density), 0, (int) (12 * density));
-                totalRow.addView(makeTableCell("Total", false, true));
-                totalRow.addView(makeTableCell("", false, true));
-                totalRow.addView(makeTableCell(String.valueOf(totalQty), false, true));
-                totalRow.addView(makeTableCell(String.format(Locale.getDefault(), "%.1f", totalAmount), false, true));
-                table.addView(totalRow);
-
-                tableContainer.addView(table);
-                cardInner.addView(tableContainer);
-
-                CheckBox cbPaid = new CheckBox(this);
-                cbPaid.setText("Mark as Paid");
-                cbPaid.setTextColor(Color.parseColor("#059669"));
-                cbPaid.setTypeface(null, android.graphics.Typeface.BOLD);
-                cbPaid.setPadding(0, (int) (8 * density), 0, 0);
-                cbPaid.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                    if(isChecked) {
-                        try {
-                            String paidDateStr = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date());
-                            order.put("isPaid", true);
-                            order.put("paidDate", paidDateStr);
-                            saveDataToStorage();
-                            Toast.makeText(this, "Moved to History!", Toast.LENGTH_SHORT).show();
-                            renderSavedOrders();
-                        } catch(Exception e) { e.printStackTrace(); }
-                    }
-                });
-                cardInner.addView(cbPaid);
-
-                card.addView(cardInner);
-                layoutSavedBoxes.addView(card);
-            } catch(Exception e) { e.printStackTrace(); }
-        }
-
-        if(tvSummaryTotalQty != null && tvSummaryTotalAmount != null) {
-            tvSummaryTotalQty.setText(String.valueOf(grandTotalQty));
-            tvSummaryTotalAmount.setText(String.format(Locale.getDefault(), "%.1f", grandTotalAmount));
-        }
-    }
-
-    private TextView makeTableCell(String text, boolean isHeader, boolean isTotal) {
-        TextView tv = new TextView(this);
-        tv.setText(text);
-        int padH = (int) (12 * getResources().getDisplayMetrics().density);
-        int padV = (int) (8 * getResources().getDisplayMetrics().density);
-        tv.setPadding(padH, padV, padH, padV);
-        tv.setGravity(Gravity.CENTER);
-        
-        if(isHeader) {
-            tv.setTextColor(Color.parseColor("#1E293B"));
-            tv.setTypeface(null, android.graphics.Typeface.BOLD);
-            tv.setTextSize(15f);
-        } else if(isTotal) {
-            tv.setTextColor(Color.parseColor("#0F172A"));
-            tv.setTypeface(null, android.graphics.Typeface.BOLD);
-            tv.setTextSize(14f);
         } else {
-            tv.setTextColor(Color.parseColor("#334155"));
-            tv.setTextSize(14f);
+            hideLoading()
         }
-        return tv;
     }
 
-    private void saveDataToStorage() {
-        SharedPreferences sp = getSharedPreferences("app_prefs", MODE_PRIVATE);
-        SharedPreferences.Editor editor = sp.edit();
+    // NEW: Runtime camera permission launcher
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(this, "Camera permission is required to scan tags", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        supportActionBar?.hide() 
+        setContentView(R.layout.activity_main)
+
+        database = AppDatabase.getDatabase(this)
         
-        JSONArray pArr = new JSONArray(productList);
-        editor.putString("products", pArr.toString());
+        tableLayout = findViewById(R.id.tableLayout)
+        switchCutOff = findViewById(R.id.switchCutOff)
+        loadingOverlay = findViewById(R.id.loadingOverlay)
+        fabCamera = findViewById(R.id.fabCamera)
+        cardFilterHint = findViewById(R.id.cardFilterHint)
+        tvFilterHint = findViewById(R.id.tvFilterHint)
+        tvClearFilterHint = findViewById(R.id.tvClearFilterHint)
 
-        JSONObject rObj = new JSONObject(ratesMap);
-        editor.putString("rates", rObj.toString());
+        fabCamera.setOnClickListener {
+            showImageOptions()
+        }
 
-        JSONArray oArr = new JSONArray(orderList);
-        editor.putString("orders", oArr.toString());
-        editor.apply();
+        switchCutOff.setOnCheckedChangeListener { _, isChecked ->
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(CUTOFF_SWITCH_KEY, isChecked).apply()
+            updateTableTotalRow()
+        }
+
+        tvClearFilterHint.setOnClickListener {
+            activeFilters.clear()
+            refreshTable()
+        }
+
+        loadSavedData()
     }
 
-    private void loadDataFromStorage() {
-        try {
-            SharedPreferences sp = getSharedPreferences("app_prefs", MODE_PRIVATE);
-            String pStr = sp.getString("products", "[]");
-            JSONArray pArr = new JSONArray(pStr);
-            productList.clear();
-            for(int i = 0; i < pArr.length(); i++) productList.add(pArr.getJSONObject(i));
+    private fun showLoading() {
+        loadingOverlay.visibility = View.VISIBLE
+        fabCamera.isEnabled = false
+    }
 
-            String rStr = sp.getString("rates", "{}");
-            JSONObject rObj = new JSONObject(rStr);
-            ratesMap.clear();
-            Iterator<String> keys = rObj.keys();
-            while(keys.hasNext()) {
-                String k = keys.next();
-                ratesMap.put(k, rObj.getJSONObject(k));
+    private fun hideLoading() {
+        loadingOverlay.visibility = View.GONE
+        fabCamera.isEnabled = true
+    }
+
+    override fun onStart() {
+        super.onStart()
+        findViewById<TextView>(R.id.tvAppTitle).setOnClickListener {
+            val menuView = layoutInflater.inflate(R.layout.dialog_menu, null)
+            
+            val dialog = MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+                .setTitle("Menu Options")
+                .setView(menuView)
+                .show()
+
+            menuView.findViewById<TextView>(R.id.menuFilter).setOnClickListener {
+                dialog.dismiss()
+                showFilterDialog()
+            }
+            menuView.findViewById<TextView>(R.id.menuPercentage).setOnClickListener {
+                dialog.dismiss()
+                showPercentageDialog()
+            }
+            menuView.findViewById<TextView>(R.id.menuDeleteRows).setOnClickListener {
+                dialog.dismiss()
+                showDeleteRowsDialog()
+            }
+            menuView.findViewById<TextView>(R.id.menuClear).setOnClickListener {
+                dialog.dismiss()
+                clearAllData()
+            }
+        }
+    }
+
+    private fun showFilterDialog() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            
+            val availableMonths = allTags.mapNotNull { tag ->
+                val parts = tag.date.split("/")
+                if (parts.size == 3) "${parts[1]}/${parts[2]}" else null
+            }.distinct().sorted()
+
+            val spinnerOptions = mutableListOf("All Months")
+            spinnerOptions.addAll(availableMonths)
+
+            withContext(Dispatchers.Main) {
+                val view = layoutInflater.inflate(R.layout.dialog_filter, null)
+                
+                val spinnerMonth = view.findViewById<AutoCompleteTextView>(R.id.spinnerFilterMonth)
+                val etDate = view.findViewById<EditText>(R.id.etFilterDate)
+                val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
+                val etBillNo = view.findViewById<EditText>(R.id.etFilterBillNo)
+                val etJappa = view.findViewById<EditText>(R.id.etFilterJappa)
+                val etMillRate = view.findViewById<EditText>(R.id.etFilterMillRate)
+                val etSalesman = view.findViewById<EditText>(R.id.etFilterSalesman)
+
+                val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_dropdown_item_1line, spinnerOptions)
+                spinnerMonth.setAdapter(adapter)
+
+                val activeMonth = activeFilters["month"]
+                if (!activeMonth.isNullOrEmpty()) {
+                    spinnerMonth.setText(activeMonth, false) 
+                } else {
+                    spinnerMonth.setText("All Months", false)
+                }
+
+                etDate.setText(activeFilters["date"] ?: "")
+                etBarcode.setText(activeFilters["barcode"] ?: "")
+                etBillNo.setText(activeFilters["billNo"] ?: "")
+                etJappa.setText(activeFilters["jappa"] ?: "")
+                etMillRate.setText(activeFilters["millRate"] ?: "")
+                etSalesman.setText(activeFilters["salesman"] ?: "")
+
+                MaterialAlertDialogBuilder(this@MainActivity, R.style.RoundedDialogTheme)
+                    .setTitle("Filter Data")
+                    .setView(view)
+                    .setPositiveButton("Apply") { _, _ ->
+                        val selectedMonth = spinnerMonth.text.toString()
+                        if (selectedMonth == "All Months" || selectedMonth.isEmpty()) {
+                            activeFilters.remove("month")
+                        } else {
+                            activeFilters["month"] = selectedMonth
+                        }
+
+                        activeFilters["date"] = etDate.text.toString().trim()
+                        activeFilters["barcode"] = etBarcode.text.toString().trim()
+                        activeFilters["billNo"] = etBillNo.text.toString().trim()
+                        activeFilters["jappa"] = etJappa.text.toString().trim()
+                        activeFilters["millRate"] = etMillRate.text.toString().trim()
+                        activeFilters["salesman"] = etSalesman.text.toString().trim()
+
+                        refreshTable()
+                    }
+                    .setNeutralButton("Clear") { _, _ ->
+                        activeFilters.clear()
+                        refreshTable()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
+    }
+
+    private fun showPercentageDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_percentage, null)
+        val etPercentage = view.findViewById<EditText>(R.id.etPercentage)
+
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setTitle("Set Cut off Percentage")
+            .setView(view)
+            .setPositiveButton("Save") { _, _ ->
+                val value = etPercentage.text.toString().toDoubleOrNull() ?: 0.0
+                cutoffPercentage = value
+                
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat(CUTOFF_PERCENT_KEY, value.toFloat()).apply()
+                
+                switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
+                if (!switchCutOff.isChecked && cutoffPercentage > 0) {
+                    switchCutOff.isChecked = true
+                }
+                updateTableTotalRow()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun clearAllData() {
+        val view = layoutInflater.inflate(R.layout.dialog_password, null)
+        val etPassword = view.findViewById<EditText>(R.id.etPassword)
+
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setTitle("Authentication Required")
+            .setMessage("Enter password to clear all data.") 
+            .setView(view)
+            .setPositiveButton("Clear Data") { _, _ ->
+                val enteredPassword = etPassword.text.toString().trim()
+                
+                val currentTime4Digit = SimpleDateFormat("hhmm", Locale.getDefault()).format(Date())
+                val currentTime3Digit = SimpleDateFormat("hmm", Locale.getDefault()).format(Date())
+
+                if (enteredPassword == currentTime4Digit || enteredPassword == currentTime3Digit) {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        database.priceTagDao().deleteAllTags()
+                        activeFilters.clear()
+                        
+                        withContext(Dispatchers.Main) {
+                            serialIndex = 1
+                            refreshTable()
+                            Toast.makeText(this@MainActivity, "All Data Cleared", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    Toast.makeText(this@MainActivity, "Incorrect Password!", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showDeleteRowsDialog() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            
+            withContext(Dispatchers.Main) {
+                if (allTags.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "No data available to delete", Toast.LENGTH_SHORT).show()
+                    return@withContext
+                }
+
+                val items = allTags.map { tag ->
+                    "No: ${tag.no} | Salesman: ${tag.salesman} | Barcode: ${tag.barcode} | Rate: ${tag.millRate} | Bill: ${tag.billNo} | Date: ${tag.date} | Jappa: ${tag.jappa}"
+                }.toTypedArray()
+
+                val checkedItems = BooleanArray(allTags.size) { false }
+                val selectedIds = mutableListOf<Int>()
+
+                MaterialAlertDialogBuilder(this@MainActivity, R.style.RoundedDialogTheme)
+                    .setTitle("Delete Specific Rows")
+                    .setMultiChoiceItems(items, checkedItems) { _, which, isChecked ->
+                        checkedItems[which] = isChecked
+                    }
+                    .setPositiveButton("Delete Selected") { _, _ ->
+                        selectedIds.clear()
+                        for (i in checkedItems.indices) {
+                            if (checkedItems[i]) {
+                                selectedIds.add(allTags[i].id)
+                            }
+                        }
+
+                        if (selectedIds.isNotEmpty()) {
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                database.priceTagDao().deleteTagsByIds(selectedIds)
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(this@MainActivity, "${selectedIds.size} row(s) deleted", Toast.LENGTH_SHORT).show()
+                                    refreshTable()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(this@MainActivity, "No rows selected", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
+    }
+
+    private fun showEditDialog(tag: PriceTag) {
+        val view = layoutInflater.inflate(R.layout.dialog_edit_row, null)
+        
+        val etDate = view.findViewById<EditText>(R.id.etEditDate)
+        val etBarcode = view.findViewById<EditText>(R.id.etEditBarcode)
+        val etBillNo = view.findViewById<EditText>(R.id.etEditBillNo)
+        val etJappa = view.findViewById<EditText>(R.id.etEditJappa)
+        val etMillRate = view.findViewById<EditText>(R.id.etEditMillRate)
+        val etSalesman = view.findViewById<EditText>(R.id.etEditSalesman)
+
+        etDate.setText(if (tag.date == "-") "" else tag.date)
+        etBarcode.setText(if (tag.barcode == "-") "" else tag.barcode)
+        etBillNo.setText(if (tag.billNo == "-") "" else tag.billNo)
+        etJappa.setText(if (tag.jappa == "-") "" else tag.jappa)
+        etMillRate.setText(if (tag.millRate == "-") "" else tag.millRate)
+        etSalesman.setText(if (tag.salesman == "-") "" else tag.salesman)
+
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setTitle("Edit Row ${tag.no}")
+            .setView(view)
+            .setPositiveButton("Save Changes") { _, _ ->
+                val updatedTag = tag.copy(
+                    date = etDate.text.toString().trim().ifEmpty { "-" },
+                    barcode = etBarcode.text.toString().trim().ifEmpty { "-" },
+                    billNo = etBillNo.text.toString().trim().ifEmpty { "-" },
+                    jappa = etJappa.text.toString().trim().ifEmpty { "-" },
+                    millRate = etMillRate.text.toString().trim().ifEmpty { "-" },
+                    salesman = etSalesman.text.toString().trim().ifEmpty { "-" }
+                )
+                
+                lifecycleScope.launch(Dispatchers.IO) {
+                    database.priceTagDao().updateTag(updatedTag)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Row Updated", Toast.LENGTH_SHORT).show()
+                        refreshTable()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showOriginalImage(tag: PriceTag) {
+        if (tag.imagePath == "-" || tag.imagePath.isEmpty()) {
+            Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val file = File(tag.imagePath)
+        if (!file.exists()) {
+            Toast.makeText(this, "Image file not found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val view = layoutInflater.inflate(R.layout.dialog_image_viewer, null)
+        val tvTitle = view.findViewById<TextView>(R.id.tvImageTitle)
+        val tvDate = view.findViewById<TextView>(R.id.tvImageDate)
+        val photoView = view.findViewById<PhotoView>(R.id.photoView)
+
+        tvTitle.text = tag.imageTitle
+        tvDate.text = "Captured: ${tag.imageDate}"
+        photoView.setImageURI(Uri.fromFile(file))
+
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setView(view)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private fun loadSavedData() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cutoffPercentage = prefs.getFloat(CUTOFF_PERCENT_KEY, 0f).toDouble()
+        val isCutoffEnabled = prefs.getBoolean(CUTOFF_SWITCH_KEY, false)
+
+        switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
+        switchCutOff.isChecked = isCutoffEnabled
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            serialIndex = allTags.size + 1
+            
+            withContext(Dispatchers.Main) {
+                refreshTable()
+            }
+        }
+    }
+
+    private fun refreshTable() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            
+            val filteredTags = allTags.filter { tag ->
+                var matches = true
+                if (activeFilters["month"]?.isNotEmpty() == true) matches = matches && tag.date.contains(activeFilters["month"]!!)
+                if (activeFilters["date"]?.isNotEmpty() == true) matches = matches && tag.date == activeFilters["date"]
+                if (activeFilters["barcode"]?.isNotEmpty() == true) matches = matches && tag.barcode.contains(activeFilters["barcode"]!!, true)
+                if (activeFilters["billNo"]?.isNotEmpty() == true) matches = matches && tag.billNo.contains(activeFilters["billNo"]!!, true)
+                if (activeFilters["jappa"]?.isNotEmpty() == true) matches = matches && tag.jappa.contains(activeFilters["jappa"]!!, true)
+                if (activeFilters["millRate"]?.isNotEmpty() == true) matches = matches && tag.millRate.contains(activeFilters["millRate"]!!, true)
+                if (activeFilters["salesman"]?.isNotEmpty() == true) matches = matches && tag.salesman.contains(activeFilters["salesman"]!!, true)
+                matches
             }
 
-            String oStr = sp.getString("orders", "[]");
-            JSONArray oArr = new JSONArray(oStr);
-            orderList.clear();
-            for(int i = 0; i < oArr.length(); i++) orderList.add(oArr.getJSONObject(i));
-        } catch(Exception e) { e.printStackTrace(); }
+            withContext(Dispatchers.Main) {
+                if (activeFilters.isNotEmpty()) {
+                    val filterSummary = activeFilters.entries.joinToString(", ") { "${it.key}: ${it.value}" }
+                    tvFilterHint.text = "🔍 Active Filter(s): $filterSummary"
+                    cardFilterHint.visibility = View.VISIBLE
+                } else {
+                    cardFilterHint.visibility = View.GONE
+                }
+
+                val childCount = tableLayout.childCount
+                if (childCount > 1) {
+                    tableLayout.removeViews(1, childCount - 1)
+                }
+
+                totalJappaAmount = 0
+                displayedRowIndex = 0
+                totalTableRow = null
+
+                for (tag in filteredTags) {
+                    if (tag.jappa != "-") {
+                        val amountString = tag.jappa.replace(Regex("[^0-9]"), "")
+                        totalJappaAmount += (amountString.toIntOrNull() ?: 0)
+                    }
+                    addRowToTable(tag)
+                }
+                
+                updateTableTotalRow()
+            }
+        }
+    }
+
+    private fun showImageOptions() {
+        val options = arrayOf("Gallery", "Open Camera")
+        
+        MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setTitle("Select Image Source")
+            .setItems(options) { _, which ->
+                if (which == 0) {
+                    galleryLauncher.launch("image/*")
+                } else {
+                    // Check runtime permission before launching camera
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        launchCamera()
+                    } else {
+                        requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun launchCamera() {
+        val tempFile = File(cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
+        tempImageUri = FileProvider.getUriForFile(this, "${packageName}.provider", tempFile)
+        cameraLauncher.launch(tempImageUri)
+    }
+
+    private fun saveImageLocally(uri: Uri): String {
+        return try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val file = File(filesDir, "tag_img_${System.currentTimeMillis()}.jpg")
+            val outputStream = FileOutputStream(file)
+            inputStream?.copyTo(outputStream)
+            inputStream?.close()
+            outputStream.close()
+            file.absolutePath
+        } catch (e: Exception) {
+            "-"
+        }
+    }
+
+    private fun saveImageToPublicGallery(sourceFile: File): String {
+        return try {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "PriceTag_${System.currentTimeMillis()}.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PriceTagReader")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            uri?.let {
+                contentResolver.openOutputStream(it)?.use { outputStream ->
+                    sourceFile.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.clear()
+                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    contentResolver.update(uri, values, null, null)
+                }
+                it.toString()
+            } ?: sourceFile.absolutePath
+        } catch (e: Exception) {
+            sourceFile.absolutePath
+        }
+    }
+
+    private fun getImageMetadata(uri: Uri): Pair<String, String> {
+        var title = "Captured Image"
+        var date = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())
+
+        try {
+            val cursor = contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        val name = it.getString(nameIndex)
+                        if (!name.isNullOrEmpty()) title = name
+                    }
+
+                    val dateIndex = it.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)
+                    if (dateIndex != -1) {
+                        val timestamp = it.getLong(dateIndex)
+                        if (timestamp > 0) {
+                            date = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(timestamp))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            
+        }
+        return Pair(title, date)
+    }
+
+    private fun processImage(uri: Uri, isFromCamera: Boolean) {
+        val localImagePath = saveImageLocally(uri)
+        
+        if (isFromCamera) {
+            val file = File(localImagePath)
+            if (file.exists()) {
+                saveImageToPublicGallery(file)
+            }
+        }
+
+        val metadata = getImageMetadata(uri) 
+        
+        val image = InputImage.fromFilePath(this, uri)
+        val barcodeScanner = BarcodeScanning.getClient()
+        val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+        var barcodeValue = "-"
+        
+        barcodeScanner.process(image)
+            .addOnSuccessListener { barcodes ->
+                if (barcodes.isNotEmpty()) {
+                    barcodeValue = barcodes[0].rawValue ?: "-"
+                }
+                
+                textRecognizer.process(image)
+                    .addOnSuccessListener { visionText ->
+                        extractAndAddData(visionText, barcodeValue, localImagePath, metadata.first, metadata.second)
+                    }
+                    .addOnFailureListener {
+                        hideLoading()
+                        Toast.makeText(this, "Text Recognition Failed", Toast.LENGTH_SHORT).show()
+                    }
+            }
+            .addOnFailureListener {
+                hideLoading()
+                Toast.makeText(this, "Barcode Scan Failed", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun extractAndAddData(visionText: Text, barcodeScanResult: String, localImagePath: String, imgTitle: String, imgDate: String) {
+        val rawText = visionText.text
+        val flatText = rawText.replace("\n", " ").replace(Regex("\\s+"), " ")
+        val noSpaceText = rawText.replace(Regex("\\s+"), "") 
+
+        val dateRegex = Regex("(\\d{2}/\\d{2}/\\d{4})")
+        val date = dateRegex.find(rawText)?.groupValues?.get(1) ?: "-"
+
+        val jappaRegex = Regex("\\b(E\\d+)\\b", RegexOption.IGNORE_CASE)
+        val jappa = jappaRegex.find(rawText)?.groupValues?.get(1) ?: "-"
+
+        var barcode = barcodeScanResult
+        if (barcode == "-" || barcode.isEmpty()) {
+            val textBarcodeRegex = Regex("(\\d-\\d{2}-\\d{4})")
+            barcode = textBarcodeRegex.find(noSpaceText)?.groupValues?.get(1) ?: "-"
+        }
+
+        var millRate = "-"
+        val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
+        val vrpMatch = vrpRegex.find(flatText)
+        
+        if (vrpMatch != null) {
+            millRate = vrpMatch.groupValues[1]
+        } else {
+            val generalRateRegex = Regex("(\\d+)\\s*/\\s*-")
+            val matches = generalRateRegex.findAll(flatText).toList()
+            if (matches.isNotEmpty()) {
+                millRate = matches.last().groupValues[1]
+            }
+        }
+
+        var billNo = "-"
+        val billRegex = Regex("Bill.*?(\\d{5,6})", RegexOption.IGNORE_CASE)
+        val billMatch = billRegex.find(flatText)
+        
+        if (billMatch != null) {
+            billNo = billMatch.groupValues[1]
+        } else {
+            val fallbackMatches = Regex("\\b(\\d{5,6})\\b").findAll(flatText).toList()
+            if (fallbackMatches.isNotEmpty()) {
+                billNo = fallbackMatches.first().groupValues[1]
+            }
+        }
+
+        var salesmanNo = "-"
+        val threeDigitBlocks = mutableListOf<Pair<String, Rect>>()
+
+        for (block in visionText.textBlocks) {
+            for (line in block.lines) {
+                for (element in line.elements) {
+                    val text = element.text
+                    if (text.matches(Regex("\\b\\d{3}\\b"))) {
+                        element.boundingBox?.let { rect ->
+                            threeDigitBlocks.add(Pair(text, rect))
+                        }
+                    }
+                }
+            }
+        }
+
+        if (threeDigitBlocks.isNotEmpty()) {
+            val topMostBlock = threeDigitBlocks.minByOrNull { it.second.top }
+            salesmanNo = topMostBlock?.first ?: "-"
+        }
+
+        val currentIndex = (serialIndex++).toString()
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            val newTag = PriceTag(
+                no = currentIndex,
+                salesman = salesmanNo,
+                barcode = barcode,
+                millRate = millRate,
+                billNo = billNo,
+                date = date,
+                jappa = jappa,
+                imagePath = localImagePath,
+                imageTitle = imgTitle, 
+                imageDate = imgDate    
+            )
+            database.priceTagDao().insertTag(newTag)
+
+            withContext(Dispatchers.Main) {
+                hideLoading()
+                Toast.makeText(this@MainActivity, "Tag Saved!", Toast.LENGTH_SHORT).show()
+                refreshTable() 
+            }
+        }
+    }
+
+    private fun addRowToTable(tag: PriceTag) {
+        val row = TableRow(this).apply {
+            val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
+            
+            isClickable = true
+            isLongClickable = true
+            setOnLongClickListener {
+                showEditDialog(tag)
+                true 
+            }
+        }
+
+        val dataList = listOf(tag.no, tag.salesman, tag.barcode, tag.millRate, tag.billNo, tag.date, tag.jappa, "IMAGE_ICON")
+        val hasMissingData = tag.salesman == "-" || tag.barcode == "-" || tag.millRate == "-" || tag.billNo == "-" || tag.date == "-" || tag.jappa == "-"
+
+        for (text in dataList) {
+            if (text == "IMAGE_ICON") {
+                val imageView = ImageView(this).apply {
+                    setImageResource(android.R.drawable.ic_menu_gallery)
+                    setPadding(16, 24, 16, 24)
+                    setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.primaryColor))
+                    layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+                    
+                    setOnClickListener { 
+                        showOriginalImage(tag) 
+                    }
+                }
+                row.addView(imageView)
+            } else {
+                val textView = TextView(this).apply {
+                    this.text = text
+                    setPadding(16, 24, 16, 24)
+                    
+                    if (hasMissingData) {
+                        setTextColor(android.graphics.Color.parseColor("#D32F2F"))
+                    } else {
+                        setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
+                    }
+                    
+                    typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                    layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+                    gravity = Gravity.CENTER 
+                }
+                row.addView(textView)
+            }
+        }
+
+        tableLayout.addView(row)
+        displayedRowIndex++
+    }
+
+    private fun updateTableTotalRow() {
+        totalTableRow?.let { tableLayout.removeView(it) }
+
+        totalTableRow = TableRow(this).apply { 
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.tableTotalBg))
+        }
+
+        for (i in 0..4) {
+            val emptyView = TextView(this).apply {
+                layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+            }
+            totalTableRow?.addView(emptyView)
+        }
+
+        val labelView = TextView(this).apply {
+            text = "Total:"
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textPrimary))
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setPadding(16, 24, 16, 24)
+            layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER 
+        }
+        totalTableRow?.addView(labelView)
+
+        val totalView = TextView(this).apply {
+            var displayText = "$totalJappaAmount"
+            
+            if (switchCutOff.isChecked && cutoffPercentage > 0) {
+                val discount = totalJappaAmount * (cutoffPercentage / 100.0)
+                val finalAmt = totalJappaAmount - discount
+                displayText = "$totalJappaAmount - $cutoffPercentage% = ${String.format("%.1f", finalAmt)}"
+            }
+            
+            text = displayText
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSuccess))
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setPadding(16, 24, 16, 24)
+            layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER 
+        }
+        totalTableRow?.addView(totalView)
+
+        val emptyViewEnd = TextView(this).apply {
+            layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
+        }
+        totalTableRow?.addView(emptyViewEnd)
+
+        tableLayout.addView(totalTableRow)
     }
 }
