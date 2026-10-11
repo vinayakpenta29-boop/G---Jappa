@@ -90,7 +90,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // NEW: Runtime camera permission launcher
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -308,8 +307,9 @@ class MainActivity : AppCompatActivity() {
                     return@withContext
                 }
 
+                // Simplified and cleaner single-line format for easy identification
                 val items = allTags.map { tag ->
-                    "No: ${tag.no} | Salesman: ${tag.salesman} | Barcode: ${tag.barcode} | Rate: ${tag.millRate} | Bill: ${tag.billNo} | Date: ${tag.date} | Jappa: ${tag.jappa}"
+                    "Row #${tag.no}   •   Bill: ${tag.billNo}   •   Date: ${tag.date}   •   Jappa: ${tag.jappa}"
                 }.toTypedArray()
 
                 val checkedItems = BooleanArray(allTags.size) { false }
@@ -489,7 +489,6 @@ class MainActivity : AppCompatActivity() {
                 if (which == 0) {
                     galleryLauncher.launch("image/*")
                 } else {
-                    // Check runtime permission before launching camera
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                         launchCamera()
                     } else {
