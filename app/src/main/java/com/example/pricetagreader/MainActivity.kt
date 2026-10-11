@@ -297,7 +297,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showDeleteRowsDialog() {
+        private fun showDeleteRowsDialog() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
             
@@ -307,9 +307,9 @@ class MainActivity : AppCompatActivity() {
                     return@withContext
                 }
 
-                // Simplified and cleaner single-line format for easy identification
+                // Clean format: No. • Barcode • Bill No., with spacing using a newline
                 val items = allTags.map { tag ->
-                    "Row #${tag.no}   •   Bill: ${tag.billNo}   •   Date: ${tag.date}   •   Jappa: ${tag.jappa}"
+                    "${tag.no}   •   ${tag.barcode}   •   ${tag.billNo}\n"
                 }.toTypedArray()
 
                 val checkedItems = BooleanArray(allTags.size) { false }
@@ -345,6 +345,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
 
     private fun showEditDialog(tag: PriceTag) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_row, null)
