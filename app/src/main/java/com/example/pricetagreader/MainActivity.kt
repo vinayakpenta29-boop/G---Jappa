@@ -297,7 +297,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-        private fun showDeleteRowsDialog() {
+    private fun showDeleteRowsDialog() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
             
@@ -307,7 +307,6 @@ class MainActivity : AppCompatActivity() {
                     return@withContext
                 }
 
-                // Clean format: No. • Barcode • Bill No., with spacing using a newline
                 val items = allTags.map { tag ->
                     "${tag.no}   •   ${tag.barcode}   •   ${tag.billNo}\n"
                 }.toTypedArray()
@@ -345,7 +344,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
 
     private fun showEditDialog(tag: PriceTag) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_row, null)
@@ -632,7 +630,6 @@ class MainActivity : AppCompatActivity() {
             barcode = textBarcodeRegex.find(noSpaceText)?.groupValues?.get(1) ?: "-"
         }
 
-        // Extract VRP rate (ignoring MRP)
         var vrpRate = "-"
         val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
         val vrpMatch = vrpRegex.find(flatText)
@@ -676,7 +673,6 @@ class MainActivity : AppCompatActivity() {
             val existingTag = if (barcode != "-") dao.getTagByBarcode(barcode) else null
 
             if (existingTag != null) {
-                // Product already exists (e.g., scanning back after front, or vice versa)
                 val updatedTag = existingTag.copy(
                     jappa = if (jappa != "-") jappa else existingTag.jappa,
                     millRate = if (vrpRate != "-") vrpRate else existingTag.millRate,
@@ -685,7 +681,6 @@ class MainActivity : AppCompatActivity() {
                 )
                 dao.updateTag(updatedTag)
             } else {
-                // New product scan
                 val currentIndex = (serialIndex++).toString()
                 val newTag = PriceTag(
                     no = currentIndex,
@@ -705,7 +700,7 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 hideLoading()
-                Toast.kt(this@MainActivity, "Tag Data Processed & Saved!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Tag Data Processed & Saved!", Toast.LENGTH_SHORT).show()
                 refreshTable() 
             }
         }
