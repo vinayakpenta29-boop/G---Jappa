@@ -390,25 +390,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showOriginalImage(tag: PriceTag) {
-        if (tag.imagePath == "-" || tag.imagePath.isEmpty()) {
-            Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        val file = File(tag.imagePath)
-        if (!file.exists()) {
-            Toast.makeText(this, "Image file not found", Toast.LENGTH_SHORT).show()
-            return
-        }
-
         val view = layoutInflater.inflate(R.layout.dialog_image_viewer, null)
         val tvTitle = view.findViewById<TextView>(R.id.tvImageTitle)
         val tvDate = view.findViewById<TextView>(R.id.tvImageDate)
-        val photoView = view.findViewById<PhotoView>(R.id.photoView)
+        val photoViewFront = view.findViewById<PhotoView>(R.id.photoViewFront)
+        val photoViewBack = view.findViewById<PhotoView>(R.id.photoViewBack)
 
         tvTitle.text = tag.imageTitle
         tvDate.text = "Captured: ${tag.imageDate}"
-        photoView.setImageURI(Uri.fromFile(file))
+
+        if (tag.frontImagePath != "-" && File(tag.frontImagePath).exists()) {
+            photoViewFront.setImageURI(Uri.fromFile(File(tag.frontImagePath)))
+        }
+        
+        if (tag.backImagePath != "-" && File(tag.backImagePath).exists()) {
+            photoViewBack.setImageURI(Uri.fromFile(File(tag.backImagePath)))
+        }
 
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setView(view)
@@ -635,24 +632,17 @@ class MainActivity : AppCompatActivity() {
             barcode = textBarcodeRegex.find(noSpaceText)?.groupValues?.get(1) ?: "-"
         }
 
-        var millRate = "-"
+        // Extract VRP rate (ignoring MRP)
+        var vrpRate = "-"
         val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
         val vrpMatch = vrpRegex.find(flatText)
-        
         if (vrpMatch != null) {
-            millRate = vrpMatch.groupValues[1]
-        } else {
-            val generalRateRegex = Regex("(\\d+)\\s*/\\s*-")
-            val matches = generalRateRegex.findAll(flatText).toList()
-            if (matches.isNotEmpty()) {
-                millRate = matches.last().groupValues[1]
-            }
+            vrpRate = vrpMatch.groupValues[1]
         }
 
         var billNo = "-"
         val billRegex = Regex("Bill.*?(\\d{5,6})", RegexOption.IGNORE_CASE)
         val billMatch = billRegex.find(flatText)
-        
         if (billMatch != null) {
             billNo = billMatch.groupValues[1]
         } else {
@@ -664,7 +654,6 @@ class MainActivity : AppCompatActivity() {
 
         var salesmanNo = "-"
         val threeDigitBlocks = mutableListOf<Pair<String, Rect>>()
-
         for (block in visionText.textBlocks) {
             for (line in block.lines) {
                 for (element in line.elements) {
@@ -677,32 +666,46 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
         if (threeDigitBlocks.isNotEmpty()) {
             val topMostBlock = threeDigitBlocks.minByOrNull { it.second.top }
             salesmanNo = topMostBlock?.first ?: "-"
         }
 
-        val currentIndex = (serialIndex++).toString()
-        
         lifecycleScope.launch(Dispatchers.IO) {
-            val newTag = PriceTag(
-                no = currentIndex,
-                salesman = salesmanNo,
-                barcode = barcode,
-                millRate = millRate,
-                billNo = billNo,
-                date = date,
-                jappa = jappa,
-                imagePath = localImagePath,
-                imageTitle = imgTitle, 
-                imageDate = imgDate    
-            )
-            database.priceTagDao().insertTag(newTag)
+            val dao = database.priceTagDao()
+            val existingTag = if (barcode != "-") dao.getTagByBarcode(barcode) else null
+
+            if (existingTag != null) {
+                // Product already exists (e.g., scanning back after front, or vice versa)
+                val updatedTag = existingTag.copy(
+                    jappa = if (jappa != "-") jappa else existingTag.jappa,
+                    millRate = if (vrpRate != "-") vrpRate else existingTag.millRate,
+                    frontImagePath = if (jappa != "-") localImagePath else existingTag.frontImagePath,
+                    backImagePath = if (vrpRate != "-") localImagePath else existingTag.backImagePath
+                )
+                dao.updateTag(updatedTag)
+            } else {
+                // New product scan
+                val currentIndex = (serialIndex++).toString()
+                val newTag = PriceTag(
+                    no = currentIndex,
+                    salesman = salesmanNo,
+                    barcode = barcode,
+                    millRate = vrpRate,
+                    billNo = billNo,
+                    date = date,
+                    jappa = jappa,
+                    frontImagePath = if (jappa != "-") localImagePath else "-",
+                    backImagePath = if (vrpRate != "-") localImagePath else "-",
+                    imageTitle = imgTitle,
+                    imageDate = imgDate
+                )
+                dao.insertTag(newTag)
+            }
 
             withContext(Dispatchers.Main) {
                 hideLoading()
-                Toast.makeText(this@MainActivity, "Tag Saved!", Toast.LENGTH_SHORT).show()
+                Toast.kt(this@MainActivity, "Tag Data Processed & Saved!", Toast.LENGTH_SHORT).show()
                 refreshTable() 
             }
         }
