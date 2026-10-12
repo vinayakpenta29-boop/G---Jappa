@@ -13,7 +13,8 @@ data class PriceTag(
     val billNo: String,
     val date: String,
     val jappa: String,
-    val imagePath: String,
-    val imageTitle: String = "Unknown", // NEW
-    val imageDate: String = "Unknown"   // NEW
+    val frontImagePath: String = "-",
+    val backImagePath: String = "-",
+    val imageTitle: String = "Unknown",
+    val imageDate: String = "Unknown"
 )
