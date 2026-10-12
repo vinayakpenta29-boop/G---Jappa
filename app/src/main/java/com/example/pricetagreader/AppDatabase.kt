@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [PriceTag::class], version = 3, exportSchema = false)
+@Database(entities = [PriceTag::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun priceTagDao(): PriceTagDao
 
@@ -15,11 +15,10 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        // Safe Migration from Version 2 to 3 to prevent data loss
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE price_tags ADD COLUMN imageTitle TEXT NOT NULL DEFAULT 'Unknown'")
-                database.execSQL("ALTER TABLE price_tags ADD COLUMN imageDate TEXT NOT NULL DEFAULT 'Unknown'")
+                database.execSQL("ALTER TABLE price_tags ADD COLUMN frontImagePath TEXT NOT NULL DEFAULT '-'")
+                database.execSQL("ALTER TABLE price_tags ADD COLUMN backImagePath TEXT NOT NULL DEFAULT '-'")
             }
         }
 
@@ -30,7 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "price_tag_database"
                 )
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_3_4)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
