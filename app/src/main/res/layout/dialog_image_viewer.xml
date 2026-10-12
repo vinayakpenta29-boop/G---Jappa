@@ -1,40 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
     android:background="@color/cardSurface">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:background="@color/tableHeaderBg">
-        
-        <TextView
-            android:id="@+id/tvImageTitle"
-            android:layout_width="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/textPrimary"
-            android:fontFamily="sans-serif-medium"
-            android:textStyle="bold"
-            android:textSize="16sp"/>
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="@color/tableHeaderBg">
             
+            <TextView
+                android:id="@+id/tvImageTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/textPrimary"
+                android:fontFamily="sans-serif-medium"
+                android:textStyle="bold"
+                android:textSize="16sp"/>
+                
+            <TextView
+                android:id="@+id/tvImageDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/textSecondary"
+                android:fontFamily="sans-serif"
+                android:textSize="14sp"/>
+        </LinearLayout>
+
+        <!-- Front Image Section -->
         <TextView
-            android:id="@+id/tvImageDate"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="@color/textSecondary"
-            android:fontFamily="sans-serif"
-            android:textSize="14sp"/>
+            android:text="Front Photo (E-Amount)"
+            android:textColor="@color/primaryColor"
+            android:textStyle="bold"
+            android:padding="8dp"
+            android:gravity="center"/>
+
+        <com.github.chrisbanes.photoview.PhotoView
+            android:id="@+id/photoViewFront"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:background="#000000" />
+
+        <!-- Back Image Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Back Photo (VRP Rate)"
+            android:textColor="@color/primaryColor"
+            android:textStyle="bold"
+            android:padding="8dp"
+            android:gravity="center"
+            android:layout_marginTop="8dp"/>
+
+        <com.github.chrisbanes.photoview.PhotoView
+            android:id="@+id/photoViewBack"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:background="#000000" />
+
     </LinearLayout>
-
-    <com.github.chrisbanes.photoview.PhotoView
-        android:id="@+id/photoView"
-        android:layout_width="match_parent"
-        android:layout_height="400dp"
-        android:background="#000000" />
-
-</LinearLayout>
+</ScrollView>
