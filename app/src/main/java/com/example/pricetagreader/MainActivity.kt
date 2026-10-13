@@ -400,7 +400,6 @@ class MainActivity : AppCompatActivity() {
         if (tag.frontImagePath != "-" && File(tag.frontImagePath).exists()) {
             photoViewFront.setImageURI(Uri.fromFile(File(tag.frontImagePath)))
         }
-        
         if (tag.backImagePath != "-" && File(tag.backImagePath).exists()) {
             photoViewBack.setImageURI(Uri.fromFile(File(tag.backImagePath)))
         }
@@ -635,7 +634,6 @@ class MainActivity : AppCompatActivity() {
         }
         val normalizedBarcode = cleanBarcode(barcode)
 
-        // Extract VRP rate (ignoring MRP)
         var vrpRate = "-"
         val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
         val vrpMatch = vrpRegex.find(flatText)
@@ -643,7 +641,7 @@ class MainActivity : AppCompatActivity() {
             vrpRate = vrpMatch.groupValues[1]
         }
 
-        // STRICT Bill No extraction (prevents grabbing MRP numbers)
+        // STRICT Bill No extraction (ignoring MRP rates)
         var billNo = "-"
         val billRegex = Regex("Bill\\s*No\\.?\\s*[:\\-]?\\s*(\\d{5,6})", RegexOption.IGNORE_CASE)
         val billMatch = billRegex.find(flatText)
@@ -672,7 +670,6 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             val dao = database.priceTagDao()
-            // Check if product already exists using normalized barcode lookup
             val existingTag = if (normalizedBarcode.isNotEmpty() && normalizedBarcode != "-") {
                 dao.getTagByCleanBarcode(normalizedBarcode)
             } else {
@@ -680,7 +677,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (existingTag != null) {
-                // Merge new scan data into the existing row
                 val updatedTag = existingTag.copy(
                     jappa = if (jappa != "-") jappa else existingTag.jappa,
                     millRate = if (vrpRate != "-") vrpRate else existingTag.millRate,
@@ -690,7 +686,6 @@ class MainActivity : AppCompatActivity() {
                 )
                 dao.updateTag(updatedTag)
             } else {
-                // Create a new row if product doesn't exist yet
                 val currentIndex = (serialIndex++).toString()
                 val newTag = PriceTag(
                     no = currentIndex,
@@ -715,7 +710,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
 
     private fun addRowToTable(tag: PriceTag) {
         val row = TableRow(this).apply {
