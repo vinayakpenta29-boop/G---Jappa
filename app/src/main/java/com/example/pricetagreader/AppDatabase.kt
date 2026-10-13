@@ -17,8 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE price_tags ADD COLUMN frontImagePath TEXT NOT NULL DEFAULT '-'")
-                database.execSQL("ALTER TABLE price_tags ADD COLUMN backImagePath TEXT NOT NULL DEFAULT '-'")
+                database.execSQL("ALTER TABLE price_tags ADD COLUMN secondImagePath TEXT NOT NULL DEFAULT '-'")
             }
         }
 
