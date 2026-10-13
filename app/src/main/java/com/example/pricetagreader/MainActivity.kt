@@ -72,6 +72,8 @@ class MainActivity : AppCompatActivity() {
     private val CUTOFF_PERCENT_KEY = "CutoffPercent"
     private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
 
+    private var currentTagForSecondImage: PriceTag? = null
+
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { 
             showLoading()
@@ -87,6 +89,25 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             hideLoading()
+        }
+    }
+
+    // Gallery launcher specifically for adding the second image without OCR processing
+    private val secondImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            val localPath = saveImageLocally(it)
+            currentTagForSecondImage?.let { tag ->
+                val updatedTag = tag.copy(secondImagePath = localPath)
+                currentTagForSecondImage = updatedTag
+                lifecycleScope.launch(Dispatchers.IO) {
+                    database.priceTagDao().updateTag(updatedTag)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Second Image Added!", Toast.LENGTH_SHORT).show()
+                        showOriginalImage(updatedTag)
+                        refreshTable()
+                    }
+                }
+            }
         }
     }
 
@@ -388,20 +409,39 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showOriginalImage(tag: PriceTag) {
+        if (tag.imagePath == "-" || tag.imagePath.isEmpty()) {
+            Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        currentTagForSecondImage = tag
         val view = layoutInflater.inflate(R.layout.dialog_image_viewer, null)
         val tvTitle = view.findViewById<TextView>(R.id.tvImageTitle)
         val tvDate = view.findViewById<TextView>(R.id.tvImageDate)
-        val photoViewFront = view.findViewById<PhotoView>(R.id.photoViewFront)
-        val photoViewBack = view.findViewById<PhotoView>(R.id.photoViewBack)
+        val photoView1 = view.findViewById<PhotoView>(R.id.photoView1)
+        val photoView2 = view.findViewById<PhotoView>(R.id.photoView2)
+        val btnAddSecondImage = view.findViewById<ImageView>(R.id.btnAddSecondImage)
 
         tvTitle.text = tag.imageTitle
         tvDate.text = "Captured: ${tag.imageDate}"
 
-        if (tag.frontImagePath != "-" && File(tag.frontImagePath).exists()) {
-            photoViewFront.setImageURI(Uri.fromFile(File(tag.frontImagePath)))
+        val file1 = File(tag.imagePath)
+        if (file1.exists()) {
+            photoView1.setImageURI(Uri.fromFile(file1))
         }
-        if (tag.backImagePath != "-" && File(tag.backImagePath).exists()) {
-            photoViewBack.setImageURI(Uri.fromFile(File(tag.backImagePath)))
+
+        if (tag.secondImagePath != "-" && tag.secondImagePath.isNotEmpty()) {
+            val file2 = File(tag.secondImagePath)
+            if (file2.exists()) {
+                photoView2.setImageURI(Uri.fromFile(file2))
+                photoView2.visibility = View.VISIBLE
+            }
+        } else {
+            photoView2.visibility = View.GONE
+        }
+
+        btnAddSecondImage.setOnClickListener {
+            secondImageLauncher.launch("image/*")
         }
 
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
@@ -612,10 +652,6 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    private fun cleanBarcode(barcode: String): String {
-        return barcode.replace(Regex("[^a-zA-Z0-9]"), "")
-    }
-
     private fun extractAndAddData(visionText: Text, barcodeScanResult: String, localImagePath: String, imgTitle: String, imgDate: String) {
         val rawText = visionText.text
         val flatText = rawText.replace("\n", " ").replace(Regex("\\s+"), " ")
@@ -632,25 +668,37 @@ class MainActivity : AppCompatActivity() {
             val textBarcodeRegex = Regex("(\\d-\\d{2}-\\d{4})")
             barcode = textBarcodeRegex.find(noSpaceText)?.groupValues?.get(1) ?: "-"
         }
-        val normalizedBarcode = cleanBarcode(barcode)
 
-        var vrpRate = "-"
+        var millRate = "-"
         val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
         val vrpMatch = vrpRegex.find(flatText)
+        
         if (vrpMatch != null) {
-            vrpRate = vrpMatch.groupValues[1]
+            millRate = vrpMatch.groupValues[1]
+        } else {
+            val generalRateRegex = Regex("(\\d+)\\s*/\\s*-")
+            val matches = generalRateRegex.findAll(flatText).toList()
+            if (matches.isNotEmpty()) {
+                millRate = matches.last().groupValues[1]
+            }
         }
 
-        // STRICT Bill No extraction (ignoring MRP rates)
         var billNo = "-"
-        val billRegex = Regex("Bill\\s*No\\.?\\s*[:\\-]?\\s*(\\d{5,6})", RegexOption.IGNORE_CASE)
+        val billRegex = Regex("Bill.*?(\\d{5,6})", RegexOption.IGNORE_CASE)
         val billMatch = billRegex.find(flatText)
+        
         if (billMatch != null) {
             billNo = billMatch.groupValues[1]
+        } else {
+            val fallbackMatches = Regex("\\b(\\d{5,6})\\b").findAll(flatText).toList()
+            if (fallbackMatches.isNotEmpty()) {
+                billNo = fallbackMatches.first().groupValues[1]
+            }
         }
 
         var salesmanNo = "-"
         val threeDigitBlocks = mutableListOf<Pair<String, Rect>>()
+
         for (block in visionText.textBlocks) {
             for (line in block.lines) {
                 for (element in line.elements) {
@@ -663,49 +711,32 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
         if (threeDigitBlocks.isNotEmpty()) {
             val topMostBlock = threeDigitBlocks.minByOrNull { it.second.top }
             salesmanNo = topMostBlock?.first ?: "-"
         }
 
+        val currentIndex = (serialIndex++).toString()
+        
         lifecycleScope.launch(Dispatchers.IO) {
-            val dao = database.priceTagDao()
-            val existingTag = if (normalizedBarcode.isNotEmpty() && normalizedBarcode != "-") {
-                dao.getTagByCleanBarcode(normalizedBarcode)
-            } else {
-                null
-            }
-
-            if (existingTag != null) {
-                val updatedTag = existingTag.copy(
-                    jappa = if (jappa != "-") jappa else existingTag.jappa,
-                    millRate = if (vrpRate != "-") vrpRate else existingTag.millRate,
-                    billNo = if (billNo != "-") billNo else existingTag.billNo,
-                    frontImagePath = if (jappa != "-") localImagePath else existingTag.frontImagePath,
-                    backImagePath = if (vrpRate != "-") localImagePath else existingTag.backImagePath
-                )
-                dao.updateTag(updatedTag)
-            } else {
-                val currentIndex = (serialIndex++).toString()
-                val newTag = PriceTag(
-                    no = currentIndex,
-                    salesman = salesmanNo,
-                    barcode = barcode,
-                    millRate = vrpRate,
-                    billNo = billNo,
-                    date = date,
-                    jappa = jappa,
-                    frontImagePath = if (jappa != "-") localImagePath else "-",
-                    backImagePath = if (vrpRate != "-") localImagePath else "-",
-                    imageTitle = imgTitle,
-                    imageDate = imgDate
-                )
-                dao.insertTag(newTag)
-            }
+            val newTag = PriceTag(
+                no = currentIndex,
+                salesman = salesmanNo,
+                barcode = barcode,
+                millRate = millRate,
+                billNo = billNo,
+                date = date,
+                jappa = jappa,
+                imagePath = localImagePath,
+                imageTitle = imgTitle, 
+                imageDate = imgDate    
+            )
+            database.priceTagDao().insertTag(newTag)
 
             withContext(Dispatchers.Main) {
                 hideLoading()
-                Toast.makeText(this@MainActivity, "Tag Data Processed & Saved!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Tag Saved!", Toast.LENGTH_SHORT).show()
                 refreshTable() 
             }
         }
