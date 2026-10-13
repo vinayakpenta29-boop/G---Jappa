@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@color/cardSurface">
@@ -9,64 +10,67 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <LinearLayout
+        <!-- Top Header with Title, Date, and Plus Button on Top Right -->
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:padding="16dp"
             android:background="@color/tableHeaderBg">
-            
-            <TextView
-                android:id="@+id/tvImageTitle"
+
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/textPrimary"
-                android:fontFamily="sans-serif-medium"
-                android:textStyle="bold"
-                android:textSize="16sp"/>
+                android:orientation="vertical"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/btnAddSecondImage">
                 
-            <TextView
-                android:id="@+id/tvImageDate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/textSecondary"
-                android:fontFamily="sans-serif"
-                android:textSize="14sp"/>
-        </LinearLayout>
+                <TextView
+                    android:id="@+id/tvImageTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/textPrimary"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold"
+                    android:textSize="16sp"/>
+                    
+                <TextView
+                    android:id="@+id/tvImageDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/textSecondary"
+                    android:fontFamily="sans-serif"
+                    android:textSize="14sp"/>
+            </LinearLayout>
 
-        <!-- Front Image Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Front Photo (E-Amount)"
-            android:textColor="@color/primaryColor"
-            android:textStyle="bold"
-            android:padding="8dp"
-            android:gravity="center"/>
+            <!-- Plus Button on Top Right -->
+            <ImageView
+                android:id="@+id/btnAddSecondImage"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:src="@android:drawable/ic_input_add"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="8dp"
+                app:tint="@color/primaryColor" />
+        </RelativeLayout>
 
+        <!-- First Image -->
         <com.github.chrisbanes.photoview.PhotoView
-            android:id="@+id/photoViewFront"
+            android:id="@+id/photoView1"
             android:layout_width="match_parent"
-            android:layout_height="250dp"
+            android:layout_height="300dp"
             android:background="#000000" />
 
-        <!-- Back Image Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Back Photo (VRP Rate)"
-            android:textColor="@color/primaryColor"
-            android:textStyle="bold"
-            android:padding="8dp"
-            android:gravity="center"
-            android:layout_marginTop="8dp"/>
-
+        <!-- Second Image (Initially hidden until added) -->
         <com.github.chrisbanes.photoview.PhotoView
-            android:id="@+id/photoViewBack"
+            android:id="@+id/photoView2"
             android:layout_width="match_parent"
-            android:layout_height="250dp"
-            android:background="#000000" />
+            android:layout_height="300dp"
+            android:layout_marginTop="8dp"
+            android:background="#000000"
+            android:visibility="gone" />
 
     </LinearLayout>
 </ScrollView>
