@@ -92,7 +92,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Gallery launcher specifically for adding the second image without OCR processing
     private val secondImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             val localPath = saveImageLocally(it)
@@ -472,7 +471,25 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
             
-            val filteredTags = allTags.filter { tag ->
+            // Auto-reindex all rows so numbers stay sequential (1, 2, 3...) after deletions
+            var needsUpdate = false
+            val reindexedTags = allTags.mapIndexed { index, tag ->
+                val expectedNo = (index + 1).toString()
+                if (tag.no != expectedNo) {
+                    needsUpdate = true
+                    tag.copy(no = expectedNo)
+                } else {
+                    tag
+                }
+            }
+            if (needsUpdate) {
+                for (tag in reindexedTags) {
+                    database.priceTagDao().updateTag(tag)
+                }
+            }
+            serialIndex = reindexedTags.size + 1
+
+            val filteredTags = reindexedTags.filter { tag ->
                 var matches = true
                 if (activeFilters["month"]?.isNotEmpty() == true) matches = matches && tag.date.contains(activeFilters["month"]!!)
                 if (activeFilters["date"]?.isNotEmpty() == true) matches = matches && tag.date == activeFilters["date"]
