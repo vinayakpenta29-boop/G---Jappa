@@ -10,10 +10,6 @@ interface PriceTagDao {
     @Query("SELECT * FROM price_tags ORDER BY id ASC")
     suspend fun getAllTags(): List<PriceTag>
 
-    // Smart query that ignores hyphens and spaces when matching barcodes
-    @Query("SELECT * FROM price_tags WHERE REPLACE(REPLACE(barcode, '-', ''), ' ', '') = :cleanBarcode LIMIT 1")
-    suspend fun getTagByCleanBarcode(cleanBarcode: String): PriceTag?
-
     @Insert
     suspend fun insertTag(tag: PriceTag)
 
