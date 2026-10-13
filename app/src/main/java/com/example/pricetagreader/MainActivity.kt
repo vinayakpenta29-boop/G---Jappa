@@ -613,6 +613,10 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
+    private fun cleanBarcode(barcode: String): String {
+        return barcode.replace(Regex("[^a-zA-Z0-9]"), "")
+    }
+
     private fun extractAndAddData(visionText: Text, barcodeScanResult: String, localImagePath: String, imgTitle: String, imgDate: String) {
         val rawText = visionText.text
         val flatText = rawText.replace("\n", " ").replace(Regex("\\s+"), " ")
@@ -629,7 +633,9 @@ class MainActivity : AppCompatActivity() {
             val textBarcodeRegex = Regex("(\\d-\\d{2}-\\d{4})")
             barcode = textBarcodeRegex.find(noSpaceText)?.groupValues?.get(1) ?: "-"
         }
+        val normalizedBarcode = cleanBarcode(barcode)
 
+        // Extract VRP rate (ignoring MRP)
         var vrpRate = "-"
         val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
         val vrpMatch = vrpRegex.find(flatText)
@@ -637,16 +643,12 @@ class MainActivity : AppCompatActivity() {
             vrpRate = vrpMatch.groupValues[1]
         }
 
+        // STRICT Bill No extraction (prevents grabbing MRP numbers)
         var billNo = "-"
-        val billRegex = Regex("Bill.*?(\\d{5,6})", RegexOption.IGNORE_CASE)
+        val billRegex = Regex("Bill\\s*No\\.?\\s*[:\\-]?\\s*(\\d{5,6})", RegexOption.IGNORE_CASE)
         val billMatch = billRegex.find(flatText)
         if (billMatch != null) {
             billNo = billMatch.groupValues[1]
-        } else {
-            val fallbackMatches = Regex("\\b(\\d{5,6})\\b").findAll(flatText).toList()
-            if (fallbackMatches.isNotEmpty()) {
-                billNo = fallbackMatches.first().groupValues[1]
-            }
         }
 
         var salesmanNo = "-"
@@ -670,17 +672,25 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             val dao = database.priceTagDao()
-            val existingTag = if (barcode != "-") dao.getTagByBarcode(barcode) else null
+            // Check if product already exists using normalized barcode lookup
+            val existingTag = if (normalizedBarcode.isNotEmpty() && normalizedBarcode != "-") {
+                dao.getTagByCleanBarcode(normalizedBarcode)
+            } else {
+                null
+            }
 
             if (existingTag != null) {
+                // Merge new scan data into the existing row
                 val updatedTag = existingTag.copy(
                     jappa = if (jappa != "-") jappa else existingTag.jappa,
                     millRate = if (vrpRate != "-") vrpRate else existingTag.millRate,
+                    billNo = if (billNo != "-") billNo else existingTag.billNo,
                     frontImagePath = if (jappa != "-") localImagePath else existingTag.frontImagePath,
                     backImagePath = if (vrpRate != "-") localImagePath else existingTag.backImagePath
                 )
                 dao.updateTag(updatedTag)
             } else {
+                // Create a new row if product doesn't exist yet
                 val currentIndex = (serialIndex++).toString()
                 val newTag = PriceTag(
                     no = currentIndex,
@@ -705,6 +715,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
 
     private fun addRowToTable(tag: PriceTag) {
         val row = TableRow(this).apply {
