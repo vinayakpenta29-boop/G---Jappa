@@ -42,6 +42,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -180,6 +181,11 @@ class MainActivity : AppCompatActivity() {
                 dialog.dismiss()
                 showPercentageDialog()
             }
+            // NEW: Export to Excel Menu Option Click Listener
+            menuView.findViewById<TextView>(R.id.menuExport).setOnClickListener {
+                dialog.dismiss()
+                exportDataToExcel()
+            }
             menuView.findViewById<TextView>(R.id.menuDeleteRows).setOnClickListener {
                 dialog.dismiss()
                 showDeleteRowsDialog()
@@ -187,6 +193,55 @@ class MainActivity : AppCompatActivity() {
             menuView.findViewById<TextView>(R.id.menuClear).setOnClickListener {
                 dialog.dismiss()
                 clearAllData()
+            }
+        }
+    }
+
+    // NEW: Function to export table data into an Excel-compatible CSV file
+    private fun exportDataToExcel() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val allTags = database.priceTagDao().getAllTags()
+            if (allTags.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "No data available to export", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            try {
+                val csvHeader = "No.,Salesman,Barcode,Mill Rate,Bill No.,Date,Jappa\n"
+                val csvRows = allTags.joinToString("\n") { tag ->
+                    "${tag.no},${tag.salesman},${tag.barcode},${tag.millRate},${tag.billNo},${tag.date},${tag.jappa}"
+                }
+                val csvContent = csvHeader + csvRows
+
+                val fileName = "PriceTagData_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.csv"
+                
+                val fos: OutputStream? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                        put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+                        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    }
+                    val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    uri?.let { contentResolver.openOutputStream(it) }
+                } else {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    val file = File(downloadsDir, fileName)
+                    FileOutputStream(file)
+                }
+
+                fos?.use {
+                    it.write(csvContent.toByteArray())
+                }
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Exported successfully to Downloads/$fileName", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -471,7 +526,6 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
             
-            // Auto-reindex all rows so numbers stay sequential (1, 2, 3...) after deletions
             var needsUpdate = false
             val reindexedTags = allTags.mapIndexed { index, tag ->
                 val expectedNo = (index + 1).toString()
