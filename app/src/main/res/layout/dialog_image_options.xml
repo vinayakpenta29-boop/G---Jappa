@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/cardSurface"
+    android:paddingBottom="8dp">
+
+    <!-- Header with Title and Plus Button on Top Right -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:background="@color/tableHeaderBg">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Select Image Source"
+            android:textColor="@color/textPrimary"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"/>
+
+        <!-- Plus Button for Manual Entry -->
+        <ImageView
+            android:id="@+id/btnManualEntry"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:src="@android:drawable/ic_input_add"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            app:tint="@color/primaryColor"
+            android:contentDescription="Manual Entry"/>
+    </RelativeLayout>
+
+    <!-- Options: Gallery and Camera -->
+    <TextView
+        android:id="@+id/optionGallery"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Gallery"
+        android:textSize="16sp"
+        android:textColor="@color/textPrimary"
+        android:fontFamily="sans-serif-medium"
+        android:padding="16dp"
+        android:drawableStart="@android:drawable/ic_menu_gallery"
+        android:drawablePadding="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"/>
+
+    <TextView
+        android:id="@+id/optionCamera"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Open Camera"
+        android:textSize="16sp"
+        android:textColor="@color/textPrimary"
+        android:fontFamily="sans-serif-medium"
+        android:padding="16dp"
+        android:drawableStart="@android:drawable/ic_menu_camera"
+        android:drawablePadding="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"/>
+</LinearLayout>
