@@ -181,7 +181,6 @@ class MainActivity : AppCompatActivity() {
                 dialog.dismiss()
                 showPercentageDialog()
             }
-            // NEW: Export to Excel Menu Option Click Listener
             menuView.findViewById<TextView>(R.id.menuExport).setOnClickListener {
                 dialog.dismiss()
                 exportDataToExcel()
@@ -197,7 +196,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // NEW: Function to export table data into an Excel-compatible CSV file
     private fun exportDataToExcel() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
@@ -587,21 +585,81 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showImageOptions() {
-        val options = arrayOf("Gallery", "Open Camera")
+        val optionsView = layoutInflater.inflate(R.layout.dialog_image_options, null)
         
+        val dialog = MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setView(optionsView)
+            .show()
+
+        optionsView.findViewById<ImageView>(R.id.btnManualEntry).setOnClickListener {
+            dialog.dismiss()
+            showManualEntryDialog()
+        }
+
+        optionsView.findViewById<TextView>(R.id.optionGallery).setOnClickListener {
+            dialog.dismiss()
+            galleryLauncher.launch("image/*")
+        }
+
+        optionsView.findViewById<TextView>(R.id.optionCamera).setOnClickListener {
+            dialog.dismiss()
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                launchCamera()
+            } else {
+                requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+
+    private fun showManualEntryDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_manual_entry, null)
+        
+        val etDate = view.findViewById<EditText>(R.id.etManualDate)
+        val etSalesman = view.findViewById<EditText>(R.id.etManualSalesman)
+        val etBarcode = view.findViewById<EditText>(R.id.etManualBarcode)
+        val etMillRate = view.findViewById<EditText>(R.id.etManualMillRate)
+        val etBillNo = view.findViewById<EditText>(R.id.etManualBillNo)
+        val etJappa = view.findViewById<EditText>(R.id.etManualJappa)
+
+        val currentDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+        etDate.setText(currentDate)
+
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
-            .setTitle("Select Image Source")
-            .setItems(options) { _, which ->
-                if (which == 0) {
-                    galleryLauncher.launch("image/*")
-                } else {
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                        launchCamera()
-                    } else {
-                        requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+            .setTitle("Manual Entry")
+            .setView(view)
+            .setPositiveButton("Save") { _, _ ->
+                val date = etDate.text.toString().trim().ifEmpty { "-" }
+                val salesman = etSalesman.text.toString().trim().ifEmpty { "-" }
+                val barcode = etBarcode.text.toString().trim().ifEmpty { "-" }
+                val millRate = etMillRate.text.toString().trim().ifEmpty { "-" }
+                val billNo = etBillNo.text.toString().trim().ifEmpty { "-" }
+                val jappa = etJappa.text.toString().trim().ifEmpty { "-" }
+
+                val currentIndex = (serialIndex++).toString()
+                val imageDateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())
+
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val newTag = PriceTag(
+                        no = currentIndex,
+                        salesman = salesman,
+                        barcode = barcode,
+                        millRate = millRate,
+                        billNo = billNo,
+                        date = date,
+                        jappa = jappa,
+                        imagePath = "-",
+                        imageTitle = "Manual Entry",
+                        imageDate = imageDateStr
+                    )
+                    database.priceTagDao().insertTag(newTag)
+
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Manual Entry Saved!", Toast.LENGTH_SHORT).show()
+                        refreshTable()
                     }
                 }
             }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
