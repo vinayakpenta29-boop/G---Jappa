@@ -44,8 +44,10 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -60,6 +62,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cardFilterHint: MaterialCardView
     private lateinit var tvFilterHint: TextView
     private lateinit var tvClearFilterHint: TextView
+    private lateinit var tvLastJappaDate: TextView
+    private lateinit var tvLastJappaCaption: TextView
     
     private var totalJappaAmount = 0
     private var cutoffPercentage = 0.0
@@ -135,6 +139,8 @@ class MainActivity : AppCompatActivity() {
         cardFilterHint = findViewById(R.id.cardFilterHint)
         tvFilterHint = findViewById(R.id.tvFilterHint)
         tvClearFilterHint = findViewById(R.id.tvClearFilterHint)
+        tvLastJappaDate = findViewById(R.id.tvLastJappaDate)
+        tvLastJappaCaption = findViewById(R.id.tvLastJappaCaption)
 
         fabCamera.setOnClickListener {
             showImageOptions()
@@ -151,6 +157,57 @@ class MainActivity : AppCompatActivity() {
         }
 
         loadSavedData()
+    }
+
+    private fun startOfDay(date: Date): Date {
+        val cal = Calendar.getInstance().apply {
+            time = date
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        return cal.time
+    }
+
+    private fun updateLastJappaSummary(tags: List<PriceTag>) {
+        val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+            isLenient = false
+        }
+
+        val lastJappaTag = tags.lastOrNull { tag ->
+            tag.jappa.isNotBlank() && tag.jappa != "-" && tag.date.isNotBlank() && tag.date != "-"
+        }
+
+        if (lastJappaTag == null) {
+            tvLastJappaDate.text = "Last Jappa Sold: -"
+            tvLastJappaCaption.text = "No Jappa sales recorded yet"
+            return
+        }
+
+        val parsedLastDate = try {
+            formatter.parse(lastJappaTag.date.trim())
+        } catch (e: Exception) {
+            null
+        }
+
+        tvLastJappaDate.text = "Last Jappa Sold: ${lastJappaTag.date}"
+
+        if (parsedLastDate == null) {
+            tvLastJappaCaption.text = "Unable to calculate days from date ${lastJappaTag.date}"
+            return
+        }
+
+        val todayStart = startOfDay(Date())
+        val lastSaleStart = startOfDay(parsedLastDate)
+        val diffMillis = todayStart.time - lastSaleStart.time
+        val daysNotSaled = TimeUnit.MILLISECONDS.toDays(diffMillis).coerceAtLeast(0L)
+
+        tvLastJappaCaption.text = when (daysNotSaled) {
+            0L -> "Not saled for 0 days (Sold today)"
+            1L -> "Not saled for 1 day from last date to today"
+            else -> "Not saled for $daysNotSaled days from last date to today"
+        }
     }
 
     private fun showLoading() {
@@ -554,6 +611,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
+                updateLastJappaSummary(filteredTags)
+
                 if (activeFilters.isNotEmpty()) {
                     val filterSummary = activeFilters.entries.joinToString(", ") { "${it.key}: ${it.value}" }
                     tvFilterHint.text = "🔍 Active Filter(s): $filterSummary"
