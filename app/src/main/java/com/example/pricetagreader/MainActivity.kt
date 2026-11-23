@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -17,6 +19,7 @@ import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.TableLayout
 import android.widget.TableRow
@@ -27,6 +30,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.lifecycleScope
 import com.github.chrisbanes.photoview.PhotoView
 import com.google.android.material.card.MaterialCardView
@@ -53,9 +57,11 @@ class MainActivity : AppCompatActivity() {
 
     private var tempImageUri: Uri? = null
     private var serialIndex = 1
-    
-    private var displayedRowIndex = 0 
-    
+
+    private var displayedRowIndex = 0
+    private var selectedRowId: Int? = null
+    private val rowViewsByTagId = mutableMapOf<Int, TableRow>()
+
     private lateinit var tableLayout: TableLayout
     private lateinit var loadingOverlay: FrameLayout
     private lateinit var fabCamera: ExtendedFloatingActionButton
@@ -66,13 +72,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggleLastJappa: ImageView
     private lateinit var tvLastJappaDate: TextView
     private lateinit var tvLastJappaCaption: TextView
-    
+
     private var totalJappaAmount = 0
     private var cutoffPercentage = 0.0
     private lateinit var switchCutOff: SwitchCompat
     private var totalTableRow: TableRow? = null
 
     private var isLastJappaCardEnabled = true
+    private var lastJappaCardColor: Int = Color.parseColor("#EEF3FF")
     private var activeFilters = mutableMapOf<String, String>()
     private lateinit var database: AppDatabase
 
@@ -80,13 +87,25 @@ class MainActivity : AppCompatActivity() {
     private val CUTOFF_PERCENT_KEY = "CutoffPercent"
     private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
     private val LAST_JAPPA_VISIBLE_KEY = "LastJappaVisible"
+    private val LAST_JAPPA_COLOR_KEY = "LastJappaCardColor"
+
+    private val premiumPaletteColors = listOf(
+        Color.parseColor("#EEF3FF"), // Royal Ice Blue
+        Color.parseColor("#E8F5E9"), // Mint Emerald Tint
+        Color.parseColor("#FFF8E1"), // Warm Champagne Gold
+        Color.parseColor("#FCE4EC"), // Rose Quartz Blush
+        Color.parseColor("#EDE7F6"), // Soft Lavender Mist
+        Color.parseColor("#E0F7FA"), // Aqua Cyan Breeze
+        Color.parseColor("#1E293B"), // Deep Slate Charcoal
+        Color.parseColor("#2E1065")  // Midnight Plum Velvet
+    )
 
     private var currentTagForSecondImage: PriceTag? = null
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { 
+        uri?.let {
             showLoading()
-            processImage(it, isFromCamera = false) 
+            processImage(it, isFromCamera = false)
         }
     }
 
@@ -94,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         if (success) {
             tempImageUri?.let { uri ->
                 showLoading()
-                processImage(uri, isFromCamera = true) 
+                processImage(uri, isFromCamera = true)
             }
         } else {
             hideLoading()
@@ -131,11 +150,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        supportActionBar?.hide() 
+        supportActionBar?.hide()
         setContentView(R.layout.activity_main)
 
         database = AppDatabase.getDatabase(this)
-        
+
         tableLayout = findViewById(R.id.tableLayout)
         switchCutOff = findViewById(R.id.switchCutOff)
         loadingOverlay = findViewById(R.id.loadingOverlay)
@@ -150,6 +169,11 @@ class MainActivity : AppCompatActivity() {
 
         btnToggleLastJappa.setOnClickListener {
             setLastJappaCardEnabled(!isLastJappaCardEnabled, showFeedback = true)
+        }
+
+        cardLastJappaSale.setOnLongClickListener {
+            showLastJappaColorDialog()
+            true
         }
 
         fabCamera.setOnClickListener {
@@ -167,6 +191,98 @@ class MainActivity : AppCompatActivity() {
         }
 
         loadSavedData()
+    }
+
+    private fun applyLastJappaCardTheme(bgColor: Int, persist: Boolean) {
+        lastJappaCardColor = bgColor
+        if (persist) {
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(LAST_JAPPA_COLOR_KEY, bgColor)
+                .apply()
+        }
+
+        val isLightSurface = ColorUtils.calculateLuminance(bgColor) > 0.45
+
+        val strokeColor = if (isLightSurface) {
+            ColorUtils.blendARGB(bgColor, Color.BLACK, 0.22f)
+        } else {
+            ColorUtils.blendARGB(bgColor, Color.WHITE, 0.28f)
+        }
+
+        val primaryTextColor = if (isLightSurface) {
+            Color.parseColor("#0F172A")
+        } else {
+            Color.parseColor("#F8FAFC")
+        }
+
+        val secondaryTextColor = if (isLightSurface) {
+            Color.parseColor("#334155")
+        } else {
+            Color.parseColor("#CBD5E1")
+        }
+
+        cardLastJappaSale.setCardBackgroundColor(bgColor)
+        cardLastJappaSale.strokeColor = strokeColor
+        cardLastJappaSale.strokeWidth = dpToPx(1.5f)
+        tvLastJappaDate.setTextColor(primaryTextColor)
+        tvLastJappaCaption.setTextColor(secondaryTextColor)
+    }
+
+    private fun showLastJappaColorDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_jappa_card_color, null)
+        val gridPalette = dialogView.findViewById<GridLayout>(R.id.gridColorPalette)
+
+        var dialogRef: androidx.appcompat.app.AlertDialog? = null
+
+        val swatchSize = dpToPx(46f)
+        val swatchMargin = dpToPx(8f)
+
+        premiumPaletteColors.forEach { swatchColor ->
+            val circleView = View(this).apply {
+                val isSelected = swatchColor == lastJappaCardColor
+                val borderColor = if (isSelected) {
+                    ContextCompat.getColor(this@MainActivity, R.color.primaryColor)
+                } else {
+                    if (ColorUtils.calculateLuminance(swatchColor) > 0.45) {
+                        Color.parseColor("#94A3B8")
+                    } else {
+                        Color.parseColor("#475569")
+                    }
+                }
+
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(swatchColor)
+                    setStroke(if (isSelected) dpToPx(3.5f) else dpToPx(1.5f), borderColor)
+                }
+
+                layoutParams = GridLayout.LayoutParams().apply {
+                    width = swatchSize
+                    height = swatchSize
+                    setMargins(swatchMargin, swatchMargin, swatchMargin, swatchMargin)
+                }
+
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    applyLastJappaCardTheme(swatchColor, persist = true)
+                    Toast.makeText(this@MainActivity, "Card color updated", Toast.LENGTH_SHORT).show()
+                    dialogRef?.dismiss()
+                }
+            }
+            gridPalette.addView(circleView)
+        }
+
+        dialogRef = MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
+            .setTitle("Last Jappa Card Color")
+            .setView(dialogView)
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun dpToPx(dp: Float): Int {
+        return (dp * resources.displayMetrics.density).toInt()
     }
 
     private fun setLastJappaCardEnabled(enabled: Boolean, showFeedback: Boolean) {
@@ -258,7 +374,7 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         findViewById<TextView>(R.id.tvAppTitle).setOnClickListener {
             val menuView = layoutInflater.inflate(R.layout.dialog_menu, null)
-            
+
             val dialog = MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
                 .setTitle("Menu Options")
                 .setView(menuView)
@@ -305,7 +421,7 @@ class MainActivity : AppCompatActivity() {
                 val csvContent = csvHeader + csvRows
 
                 val fileName = "PriceTagData_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.csv"
-                
+
                 val fos: OutputStream? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     val values = ContentValues().apply {
                         put(MediaStore.Downloads.DISPLAY_NAME, fileName)
@@ -338,7 +454,7 @@ class MainActivity : AppCompatActivity() {
     private fun showFilterDialog() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
-            
+
             val availableMonths = allTags.mapNotNull { tag ->
                 val parts = tag.date.split("/")
                 if (parts.size == 3) "${parts[1]}/${parts[2]}" else null
@@ -349,7 +465,7 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 val view = layoutInflater.inflate(R.layout.dialog_filter, null)
-                
+
                 val spinnerMonth = view.findViewById<AutoCompleteTextView>(R.id.spinnerFilterMonth)
                 val etDate = view.findViewById<EditText>(R.id.etFilterDate)
                 val etBarcode = view.findViewById<EditText>(R.id.etFilterBarcode)
@@ -363,7 +479,7 @@ class MainActivity : AppCompatActivity() {
 
                 val activeMonth = activeFilters["month"]
                 if (!activeMonth.isNullOrEmpty()) {
-                    spinnerMonth.setText(activeMonth, false) 
+                    spinnerMonth.setText(activeMonth, false)
                 } else {
                     spinnerMonth.setText("All Months", false)
                 }
@@ -415,9 +531,9 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val value = etPercentage.text.toString().toDoubleOrNull() ?: 0.0
                 cutoffPercentage = value
-                
+
                 getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putFloat(CUTOFF_PERCENT_KEY, value.toFloat()).apply()
-                
+
                 switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
                 if (!switchCutOff.isChecked && cutoffPercentage > 0) {
                     switchCutOff.isChecked = true
@@ -434,11 +550,11 @@ class MainActivity : AppCompatActivity() {
 
         MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setTitle("Authentication Required")
-            .setMessage("Enter password to clear all data.") 
+            .setMessage("Enter password to clear all data.")
             .setView(view)
             .setPositiveButton("Clear Data") { _, _ ->
                 val enteredPassword = etPassword.text.toString().trim()
-                
+
                 val currentTime4Digit = SimpleDateFormat("hhmm", Locale.getDefault()).format(Date())
                 val currentTime3Digit = SimpleDateFormat("hmm", Locale.getDefault()).format(Date())
 
@@ -446,8 +562,9 @@ class MainActivity : AppCompatActivity() {
                     lifecycleScope.launch(Dispatchers.IO) {
                         database.priceTagDao().deleteAllTags()
                         activeFilters.clear()
-                        
+
                         withContext(Dispatchers.Main) {
+                            selectedRowId = null
                             serialIndex = 1
                             refreshTable()
                             Toast.makeText(this@MainActivity, "All Data Cleared", Toast.LENGTH_SHORT).show()
@@ -464,7 +581,7 @@ class MainActivity : AppCompatActivity() {
     private fun showDeleteRowsDialog() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
-            
+
             withContext(Dispatchers.Main) {
                 if (allTags.isEmpty()) {
                     Toast.makeText(this@MainActivity, "No data available to delete", Toast.LENGTH_SHORT).show()
@@ -495,6 +612,9 @@ class MainActivity : AppCompatActivity() {
                             lifecycleScope.launch(Dispatchers.IO) {
                                 database.priceTagDao().deleteTagsByIds(selectedIds)
                                 withContext(Dispatchers.Main) {
+                                    if (selectedRowId in selectedIds) {
+                                        selectedRowId = null
+                                    }
                                     Toast.makeText(this@MainActivity, "${selectedIds.size} row(s) deleted", Toast.LENGTH_SHORT).show()
                                     refreshTable()
                                 }
@@ -511,7 +631,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showEditDialog(tag: PriceTag) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_row, null)
-        
+
         val etDate = view.findViewById<EditText>(R.id.etEditDate)
         val etBarcode = view.findViewById<EditText>(R.id.etEditBarcode)
         val etBillNo = view.findViewById<EditText>(R.id.etEditBillNo)
@@ -538,7 +658,7 @@ class MainActivity : AppCompatActivity() {
                     millRate = etMillRate.text.toString().trim().ifEmpty { "-" },
                     salesman = etSalesman.text.toString().trim().ifEmpty { "-" }
                 )
-                
+
                 lifecycleScope.launch(Dispatchers.IO) {
                     database.priceTagDao().updateTag(updatedTag)
                     withContext(Dispatchers.Main) {
@@ -556,7 +676,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "No image found", Toast.LENGTH_SHORT).show()
             return
         }
-        
+
         currentTagForSecondImage = tag
         val view = layoutInflater.inflate(R.layout.dialog_image_viewer, null)
         val tvTitle = view.findViewById<TextView>(R.id.tvImageTitle)
@@ -598,15 +718,17 @@ class MainActivity : AppCompatActivity() {
         cutoffPercentage = prefs.getFloat(CUTOFF_PERCENT_KEY, 0f).toDouble()
         val isCutoffEnabled = prefs.getBoolean(CUTOFF_SWITCH_KEY, false)
         val isLastJappaSavedVisible = prefs.getBoolean(LAST_JAPPA_VISIBLE_KEY, true)
+        val savedCardColor = prefs.getInt(LAST_JAPPA_COLOR_KEY, premiumPaletteColors.first())
 
         switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
         switchCutOff.isChecked = isCutoffEnabled
         setLastJappaCardEnabled(isLastJappaSavedVisible, showFeedback = false)
+        applyLastJappaCardTheme(savedCardColor, persist = false)
 
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
             serialIndex = allTags.size + 1
-            
+
             withContext(Dispatchers.Main) {
                 refreshTable()
             }
@@ -616,7 +738,7 @@ class MainActivity : AppCompatActivity() {
     private fun refreshTable() {
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
-            
+
             var needsUpdate = false
             val reindexedTags = allTags.mapIndexed { index, tag ->
                 val expectedNo = (index + 1).toString()
@@ -661,6 +783,7 @@ class MainActivity : AppCompatActivity() {
                 if (childCount > 1) {
                     tableLayout.removeViews(1, childCount - 1)
                 }
+                rowViewsByTagId.clear()
 
                 totalJappaAmount = 0
                 displayedRowIndex = 0
@@ -673,15 +796,34 @@ class MainActivity : AppCompatActivity() {
                     }
                     addRowToTable(tag)
                 }
-                
+
                 updateTableTotalRow()
             }
         }
     }
 
+    private fun applyRowHighlight(row: TableRow, rowPositionIndex: Int, isSelected: Boolean) {
+        if (isSelected) {
+            row.setBackgroundColor(Color.parseColor("#DBEAFE"))
+        } else {
+            val bgColor = if (rowPositionIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
+            row.setBackgroundColor(ContextCompat.getColor(this, bgColor))
+        }
+    }
+
+    private fun selectTableRow(tagId: Int) {
+        val previousSelectedId = selectedRowId
+        selectedRowId = if (previousSelectedId == tagId) null else tagId
+
+        rowViewsByTagId.forEach { (id, rowView) ->
+            val positionIndex = (rowView.tag as? Int) ?: 0
+            applyRowHighlight(rowView, positionIndex, isSelected = (id == selectedRowId))
+        }
+    }
+
     private fun showImageOptions() {
         val optionsView = layoutInflater.inflate(R.layout.dialog_image_options, null)
-        
+
         val dialog = MaterialAlertDialogBuilder(this, R.style.RoundedDialogTheme)
             .setView(optionsView)
             .show()
@@ -708,7 +850,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showManualEntryDialog() {
         val view = layoutInflater.inflate(R.layout.dialog_manual_entry, null)
-        
+
         val etDate = view.findViewById<EditText>(R.id.etManualDate)
         val etSalesman = view.findViewById<EditText>(R.id.etManualSalesman)
         val etBarcode = view.findViewById<EditText>(R.id.etManualBarcode)
@@ -832,14 +974,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            
+
         }
         return Pair(title, date)
     }
 
     private fun processImage(uri: Uri, isFromCamera: Boolean) {
         val localImagePath = saveImageLocally(uri)
-        
+
         if (isFromCamera) {
             val file = File(localImagePath)
             if (file.exists()) {
@@ -847,20 +989,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val metadata = getImageMetadata(uri) 
-        
+        val metadata = getImageMetadata(uri)
+
         val image = InputImage.fromFilePath(this, uri)
         val barcodeScanner = BarcodeScanning.getClient()
         val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
         var barcodeValue = "-"
-        
+
         barcodeScanner.process(image)
             .addOnSuccessListener { barcodes ->
                 if (barcodes.isNotEmpty()) {
                     barcodeValue = barcodes[0].rawValue ?: "-"
                 }
-                
+
                 textRecognizer.process(image)
                     .addOnSuccessListener { visionText ->
                         extractAndAddData(visionText, barcodeValue, localImagePath, metadata.first, metadata.second)
@@ -879,7 +1021,7 @@ class MainActivity : AppCompatActivity() {
     private fun extractAndAddData(visionText: Text, barcodeScanResult: String, localImagePath: String, imgTitle: String, imgDate: String) {
         val rawText = visionText.text
         val flatText = rawText.replace("\n", " ").replace(Regex("\\s+"), " ")
-        val noSpaceText = rawText.replace(Regex("\\s+"), "") 
+        val noSpaceText = rawText.replace(Regex("\\s+"), "")
 
         val dateRegex = Regex("(\\d{2}/\\d{2}/\\d{4})")
         val date = dateRegex.find(rawText)?.groupValues?.get(1) ?: "-"
@@ -896,7 +1038,7 @@ class MainActivity : AppCompatActivity() {
         var millRate = "-"
         val vrpRegex = Regex("VRP.*?(\\d+)\\s*/\\s*-", RegexOption.IGNORE_CASE)
         val vrpMatch = vrpRegex.find(flatText)
-        
+
         if (vrpMatch != null) {
             millRate = vrpMatch.groupValues[1]
         } else {
@@ -910,7 +1052,7 @@ class MainActivity : AppCompatActivity() {
         var billNo = "-"
         val billRegex = Regex("Bill.*?(\\d{5,6})", RegexOption.IGNORE_CASE)
         val billMatch = billRegex.find(flatText)
-        
+
         if (billMatch != null) {
             billNo = billMatch.groupValues[1]
         } else {
@@ -942,7 +1084,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val currentIndex = (serialIndex++).toString()
-        
+
         lifecycleScope.launch(Dispatchers.IO) {
             val newTag = PriceTag(
                 no = currentIndex,
@@ -953,29 +1095,34 @@ class MainActivity : AppCompatActivity() {
                 date = date,
                 jappa = jappa,
                 imagePath = localImagePath,
-                imageTitle = imgTitle, 
-                imageDate = imgDate    
+                imageTitle = imgTitle,
+                imageDate = imgDate
             )
             database.priceTagDao().insertTag(newTag)
 
             withContext(Dispatchers.Main) {
                 hideLoading()
                 Toast.makeText(this@MainActivity, "Tag Saved!", Toast.LENGTH_SHORT).show()
-                refreshTable() 
+                refreshTable()
             }
         }
     }
 
     private fun addRowToTable(tag: PriceTag) {
+        val currentRowPosition = displayedRowIndex
         val row = TableRow(this).apply {
-            val bgColor = if (displayedRowIndex % 2 == 0) R.color.tableRowBg1 else R.color.tableRowBg2
-            setBackgroundColor(ContextCompat.getColor(this@MainActivity, bgColor))
-            
+            this.tag = currentRowPosition
+            applyRowHighlight(this, currentRowPosition, isSelected = (tag.id == selectedRowId))
+
             isClickable = true
             isLongClickable = true
+            setOnClickListener {
+                selectTableRow(tag.id)
+            }
             setOnLongClickListener {
+                selectTableRow(tag.id)
                 showEditDialog(tag)
-                true 
+                true
             }
         }
 
@@ -989,9 +1136,10 @@ class MainActivity : AppCompatActivity() {
                     setPadding(16, 24, 16, 24)
                     setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.primaryColor))
                     layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
-                    
-                    setOnClickListener { 
-                        showOriginalImage(tag) 
+
+                    setOnClickListener {
+                        selectTableRow(tag.id)
+                        showOriginalImage(tag)
                     }
                 }
                 row.addView(imageView)
@@ -999,21 +1147,22 @@ class MainActivity : AppCompatActivity() {
                 val textView = TextView(this).apply {
                     this.text = text
                     setPadding(16, 24, 16, 24)
-                    
+
                     if (hasMissingData) {
-                        setTextColor(android.graphics.Color.parseColor("#D32F2F"))
+                        setTextColor(Color.parseColor("#D32F2F"))
                     } else {
                         setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSecondary))
                     }
-                    
+
                     typeface = Typeface.create("sans-serif", Typeface.NORMAL)
                     layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
-                    gravity = Gravity.CENTER 
+                    gravity = Gravity.CENTER
                 }
                 row.addView(textView)
             }
         }
 
+        rowViewsByTagId[tag.id] = row
         tableLayout.addView(row)
         displayedRowIndex++
     }
@@ -1021,7 +1170,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateTableTotalRow() {
         totalTableRow?.let { tableLayout.removeView(it) }
 
-        totalTableRow = TableRow(this).apply { 
+        totalTableRow = TableRow(this).apply {
             setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.tableTotalBg))
         }
 
@@ -1038,25 +1187,25 @@ class MainActivity : AppCompatActivity() {
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             setPadding(16, 24, 16, 24)
             layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
-            gravity = Gravity.CENTER 
+            gravity = Gravity.CENTER
         }
         totalTableRow?.addView(labelView)
 
         val totalView = TextView(this).apply {
             var displayText = "$totalJappaAmount"
-            
+
             if (switchCutOff.isChecked && cutoffPercentage > 0) {
                 val discount = totalJappaAmount * (cutoffPercentage / 100.0)
                 val finalAmt = totalJappaAmount - discount
                 displayText = "$totalJappaAmount - $cutoffPercentage% = ${String.format("%.1f", finalAmt)}"
             }
-            
+
             text = displayText
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textSuccess))
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             setPadding(16, 24, 16, 24)
             layoutParams = TableRow.LayoutParams(TableRow.LayoutParams.MATCH_PARENT, TableRow.LayoutParams.WRAP_CONTENT)
-            gravity = Gravity.CENTER 
+            gravity = Gravity.CENTER
         }
         totalTableRow?.addView(totalView)
 
