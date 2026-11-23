@@ -62,6 +62,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cardFilterHint: MaterialCardView
     private lateinit var tvFilterHint: TextView
     private lateinit var tvClearFilterHint: TextView
+    private lateinit var cardLastJappaSale: MaterialCardView
+    private lateinit var btnToggleLastJappa: ImageView
     private lateinit var tvLastJappaDate: TextView
     private lateinit var tvLastJappaCaption: TextView
     
@@ -70,12 +72,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchCutOff: SwitchCompat
     private var totalTableRow: TableRow? = null
 
+    private var isLastJappaCardEnabled = true
     private var activeFilters = mutableMapOf<String, String>()
     private lateinit var database: AppDatabase
 
     private val PREFS_NAME = "PriceTagSettings"
     private val CUTOFF_PERCENT_KEY = "CutoffPercent"
     private val CUTOFF_SWITCH_KEY = "CutoffSwitch"
+    private val LAST_JAPPA_VISIBLE_KEY = "LastJappaVisible"
 
     private var currentTagForSecondImage: PriceTag? = null
 
@@ -139,8 +143,14 @@ class MainActivity : AppCompatActivity() {
         cardFilterHint = findViewById(R.id.cardFilterHint)
         tvFilterHint = findViewById(R.id.tvFilterHint)
         tvClearFilterHint = findViewById(R.id.tvClearFilterHint)
+        cardLastJappaSale = findViewById(R.id.cardLastJappaSale)
+        btnToggleLastJappa = findViewById(R.id.btnToggleLastJappa)
         tvLastJappaDate = findViewById(R.id.tvLastJappaDate)
         tvLastJappaCaption = findViewById(R.id.tvLastJappaCaption)
+
+        btnToggleLastJappa.setOnClickListener {
+            setLastJappaCardEnabled(!isLastJappaCardEnabled, showFeedback = true)
+        }
 
         fabCamera.setOnClickListener {
             showImageOptions()
@@ -157,6 +167,30 @@ class MainActivity : AppCompatActivity() {
         }
 
         loadSavedData()
+    }
+
+    private fun setLastJappaCardEnabled(enabled: Boolean, showFeedback: Boolean) {
+        isLastJappaCardEnabled = enabled
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(LAST_JAPPA_VISIBLE_KEY, enabled)
+            .apply()
+
+        if (enabled) {
+            cardLastJappaSale.visibility = View.VISIBLE
+            btnToggleLastJappa.setImageResource(android.R.drawable.ic_menu_view)
+            btnToggleLastJappa.alpha = 1.0f
+            if (showFeedback) {
+                Toast.makeText(this, "Last Jappa Sold card enabled", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cardLastJappaSale.visibility = View.GONE
+            btnToggleLastJappa.setImageResource(android.R.drawable.ic_secure)
+            btnToggleLastJappa.alpha = 0.65f
+            if (showFeedback) {
+                Toast.makeText(this, "Last Jappa Sold card hidden", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun startOfDay(date: Date): Date {
@@ -563,9 +597,11 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         cutoffPercentage = prefs.getFloat(CUTOFF_PERCENT_KEY, 0f).toDouble()
         val isCutoffEnabled = prefs.getBoolean(CUTOFF_SWITCH_KEY, false)
+        val isLastJappaSavedVisible = prefs.getBoolean(LAST_JAPPA_VISIBLE_KEY, true)
 
         switchCutOff.text = "Apply Cut Off ($cutoffPercentage%)"
         switchCutOff.isChecked = isCutoffEnabled
+        setLastJappaCardEnabled(isLastJappaSavedVisible, showFeedback = false)
 
         lifecycleScope.launch(Dispatchers.IO) {
             val allTags = database.priceTagDao().getAllTags()
