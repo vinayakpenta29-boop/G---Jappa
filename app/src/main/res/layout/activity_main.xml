@@ -22,21 +22,41 @@
             android:background="@color/primaryColor"
             app:contentInsetStart="0dp">
 
-            <TextView
-                android:id="@+id/tvAppTitle"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="sans-serif-black"
                 android:gravity="center_vertical"
+                android:orientation="horizontal"
                 android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:text="Price Tag Reader"
-                android:textColor="@android:color/white"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+                android:paddingEnd="12dp">
+
+                <TextView
+                    android:id="@+id/tvAppTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:fontFamily="sans-serif-black"
+                    android:gravity="center_vertical"
+                    android:text="Price Tag Reader"
+                    android:textColor="@android:color/white"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/btnToggleLastJappa"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:contentDescription="Toggle Last Jappa Sold Card"
+                    android:focusable="true"
+                    android:padding="10dp"
+                    android:src="@android:drawable/ic_menu_view"
+                    app:tint="@android:color/white" />
+            </LinearLayout>
 
         </com.google.android.material.appbar.MaterialToolbar>
     </com.google.android.material.appbar.AppBarLayout>
@@ -87,45 +107,68 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- Premium Last Jappa Sold Summary Card -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/cardLastJappaSale"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="10dp"
-        app:cardBackgroundColor="@color/cardSurface"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="2dp"
+        app:cardBackgroundColor="#EEF3FF"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="3dp"
         app:layout_constraintTop_toBottomOf="@id/cardFilterHint"
-        app:strokeColor="@color/primaryColor"
+        app:strokeColor="#B8CCFF"
         app:strokeWidth="1dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="10dp">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
 
-            <TextView
-                android:id="@+id/tvLastJappaDate"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:text="Last Jappa Sold: -"
-                android:textColor="@color/textPrimary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+            <FrameLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@color/primaryColor">
 
-            <TextView
-                android:id="@+id/tvLastJappaCaption"
-                android:layout_width="match_parent"
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@android:drawable/ic_menu_recent_history"
+                    app:tint="@android:color/white" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:fontFamily="sans-serif"
-                android:text="No Jappa sales recorded yet"
-                android:textColor="@color/textSecondary"
-                android:textSize="12sp" />
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvLastJappaDate"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="Last Jappa Sold: -"
+                    android:textColor="#00299B"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvLastJappaCaption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="sans-serif"
+                    android:text="No Jappa sales recorded yet"
+                    android:textColor="#3B5998"
+                    android:textSize="12sp" />
+            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
